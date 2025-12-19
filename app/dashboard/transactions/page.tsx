@@ -4,7 +4,32 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
 import { format } from 'date-fns'
-import { Search, Filter, } from 'lucide-react'
+import { Search, Filter, Download } from 'lucide-react'
+import { exportToExcel, ExportColumn } from '@/lib/export'
+
+// 账单导出列配置
+const transactionExportColumns: ExportColumn<Transaction>[] = [
+    {
+        header: '时间',
+        key: 'occurred_at',
+        formatter: (value) => format(new Date(value as string), 'yyyy-MM-dd HH:mm:ss')
+    },
+    {
+        header: '商户',
+        key: 'merchant',
+        formatter: (value) => (value as string) || '未填写'
+    },
+    {
+        header: '分类',
+        key: 'category',
+        formatter: (value) => (value as string) || '未分类'
+    },
+    {
+        header: '金额',
+        key: 'amount',
+        formatter: (value) => Number(value)
+    }
+]
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -31,6 +56,13 @@ export default function TransactionsPage() {
         t.category?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    const handleExport = () => {
+        exportToExcel(filteredTransactions, transactionExportColumns, {
+            filename: `账单记录_${format(new Date(), 'yyyyMMdd_HHmmss')}`,
+            sheetName: '账单记录'
+        })
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -53,6 +85,14 @@ export default function TransactionsPage() {
                     <button className="p-2 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800">
                         <Filter size={18} />
                     </button>
+                    <button
+                        onClick={handleExport}
+                        disabled={filteredTransactions.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Download size={18} />
+                        <span className="hidden sm:inline">导出</span>
+                    </button>
                 </div>
             </div>
 
@@ -65,7 +105,6 @@ export default function TransactionsPage() {
                                 <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">商户</th>
                                 <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">分类</th>
                                 <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">金额</th>
-                                <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-center">附件</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -96,7 +135,6 @@ export default function TransactionsPage() {
                     </div>
                 )}
             </div>
-
         </div>
     )
 }
