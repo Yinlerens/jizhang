@@ -30,3 +30,22 @@ body {
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
+
+/* 移除点击时的黑色边框 */
+button:focus,
+a:focus,
+[role="button"]:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* 移除SVG和图标的点击样式 */
+svg {
+  outline: none;
+}

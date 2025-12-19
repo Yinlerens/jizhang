@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
 import { format } from 'date-fns'
-import { Search, Filter, Image as ImageIcon, X } from 'lucide-react'
+import { Search, Filter, } from 'lucide-react'
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
-    const [selectedImage, setSelectedImage] = useState<string | null>(null)
     const supabase = createClient()
 
     useEffect(() => {
@@ -86,18 +85,6 @@ export default function TransactionsPage() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-zinc-900 dark:text-zinc-50">
                                         ¥{Number(t.amount).toLocaleString()}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        {t.image_path ? (
-                                            <button
-                                                onClick={() => setSelectedImage(t.image_path)}
-                                                className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50 transition duration-200"
-                                            >
-                                                <ImageIcon size={18} />
-                                            </button>
-                                        ) : (
-                                            <span className="text-zinc-300 dark:text-zinc-700">-</span>
-                                        )}
-                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -110,24 +97,6 @@ export default function TransactionsPage() {
                 )}
             </div>
 
-            {/* Image Modal */}
-            {selectedImage && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <button
-                        onClick={() => setSelectedImage(null)}
-                        className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full"
-                    >
-                        <X size={24} />
-                    </button>
-                    <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-xl">
-                        <img
-                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${selectedImage}`}
-                            alt="Transaction receipt"
-                            className="w-full h-full object-contain"
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     )
 }

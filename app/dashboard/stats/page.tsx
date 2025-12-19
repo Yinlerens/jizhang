@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay } from 'date-fns'
-
-const COLORS = ['#18181b', '#27272a', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8', '#e5e7eb']
+import { CHART_COLORS, getChartColor } from '@/lib/colors'
 
 export default function StatsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -51,6 +50,8 @@ export default function StatsPage() {
     const categoryData = Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
 
+    const primaryColor = CHART_COLORS[4] // Violet for bar chart
+
     return (
         <div className="space-y-8">
             <div>
@@ -69,10 +70,16 @@ export default function StatsPage() {
                                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
                                 <Tooltip
-                                    cursor={{ fill: 'rgba(24, 24, 27, 0.05)' }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+                                    contentStyle={{
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.95)'
+                                    }}
+                                    formatter={(value) => [`¥${Number(value).toLocaleString()}`, '支出']}
                                 />
-                                <Bar dataKey="amount" fill="#18181b" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="amount" fill={primaryColor} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -85,13 +92,22 @@ export default function StatsPage() {
                         {categoryData.map((item, index) => (
                             <div key={item.name} className="space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-zinc-700 dark:text-zinc-300">{item.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: getChartColor(index) }}
+                                        />
+                                        <span className="font-medium text-zinc-700 dark:text-zinc-300">{item.name}</span>
+                                    </div>
                                     <span className="font-bold text-zinc-900 dark:text-zinc-50">¥{item.value.toLocaleString()}</span>
                                 </div>
                                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
                                     <div
-                                        className="bg-zinc-900 dark:bg-zinc-50 h-full rounded-full transition-all duration-500"
-                                        style={{ width: `${(item.value / categoryData[0].value) * 100}%` }}
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{
+                                            width: `${(item.value / categoryData[0].value) * 100}%`,
+                                            backgroundColor: getChartColor(index)
+                                        }}
                                     />
                                 </div>
                             </div>

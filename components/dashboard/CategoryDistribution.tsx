@@ -1,12 +1,11 @@
 'use client'
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
+import { CHART_COLORS, getChartColor } from '@/lib/colors'
 
 interface CategoryDistributionProps {
     data: { category: string; amount: number }[]
 }
-
-const COLORS = ['#18181b', '#3f3f46', '#71717a', '#a1a1aa', '#d4d4d8']
 
 export default function CategoryDistribution({ data }: CategoryDistributionProps) {
     return (
@@ -26,10 +25,18 @@ export default function CategoryDistribution({ data }: CategoryDistributionProps
                             nameKey="category"
                         >
                             {data.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell-${index}`} fill={getChartColor(index)} />
                             ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                borderRadius: '12px',
+                                border: 'none',
+                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                            }}
+                            formatter={(value) => [`¥${Number(value).toLocaleString()}`, '金额']}
+                        />
                         <Legend verticalAlign="bottom" height={36} />
                     </PieChart>
                 </ResponsiveContainer>
