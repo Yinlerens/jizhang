@@ -3,16 +3,18 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay } from 'date-fns'
 import { CHART_COLORS, getChartColor } from '@/lib/colors'
 
 export default function StatsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
+    const [mounted, setMounted] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
+        setMounted(true)
         const fetchTransactions = async () => {
             const { data } = await supabase
                 .from('transactions')
@@ -61,27 +63,33 @@ export default function StatsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Daily Spending Bar Chart */}
-                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 h-[450px]">
+                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                     <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6">本月每日支出</h3>
-                    <div className="h-full w-full">
-                        <ResponsiveContainer width="100%" height="80%">
-                            <BarChart data={dailyData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                                <Tooltip
-                                    cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-                                    contentStyle={{
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.95)'
-                                    }}
-                                    formatter={(value) => [`¥${Number(value).toLocaleString()}`, '支出']}
-                                />
-                                <Bar dataKey="amount" fill={primaryColor} radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <div style={{ width: '100%', height: 350 }}>
+                        {mounted ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dailyData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                                    <Tooltip
+                                        cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+                                        contentStyle={{
+                                            borderRadius: '12px',
+                                            border: 'none',
+                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.95)'
+                                        }}
+                                        formatter={(value) => [`¥${Number(value).toLocaleString()}`, '支出']}
+                                    />
+                                    <Bar dataKey="amount" fill={primaryColor} radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-zinc-400">
+                                加载中...
+                            </div>
+                        )}
                     </div>
                 </div>
 

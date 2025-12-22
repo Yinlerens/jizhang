@@ -40,9 +40,6 @@ export function identifyUser(
         id: userId,
         ...userProperties,
     })
-
-    // 设置PostHog链接标签
-    Sentry.setTag('posthog_distinct_id', userId)
 }
 
 // 用户登出时重置
@@ -89,22 +86,4 @@ export function trackPageLeave() {
     if (typeof window !== 'undefined' && posthog) {
         posthog.capture('$pageleave')
     }
-}
-
-// 获取PostHog会话链接（用于在Sentry中显示）
-export function getPostHogSessionUrl(): string | null {
-    if (typeof window !== 'undefined' && posthog) {
-        const sessionId = posthog.get_session_id?.()
-        if (sessionId) {
-            return `https://app.posthog.com/replay/${sessionId}`
-        }
-    }
-    return null
-}
-
-// 获取Sentry错误链接（需要在PostHog中使用）
-export function getSentryTraceId(): string | null {
-    const scope = Sentry.getCurrentScope()
-    const span = scope.getSpan()
-    return span?.spanContext().traceId || null
 }

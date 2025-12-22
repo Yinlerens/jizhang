@@ -3,7 +3,6 @@
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
-import * as Sentry from "@sentry/nextjs";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -16,18 +15,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         capture_pageview: false, // 手动控制页面视图
         capture_pageleave: true,
 
-        // 初始化完成后设置Sentry联动
+        // 初始化完成后的回调
         loaded: (ph) => {
-          // 将PostHog实例挂载到window供Sentry访问
-          (window as { posthog?: typeof posthog }).posthog = ph;
-
-          // 设置Sentry用户关联
-          const distinctId = ph.get_distinct_id();
-          if (distinctId) {
-            Sentry.setUser({ id: distinctId });
-            Sentry.setTag("posthog_distinct_id", distinctId);
-          }
-
           // 开发环境调试
           if (process.env.NODE_ENV === "development") {
             ph.debug();
