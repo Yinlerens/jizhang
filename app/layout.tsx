@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "记账管理 - 智能财务管家",
+  title: "SERVICE",
   description: "支持双端的智能记账与财务分析平台",
 };
 
@@ -28,9 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <PostHogProvider>
           <PostHogPageView />
           {children}
