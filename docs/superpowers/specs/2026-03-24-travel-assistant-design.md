@@ -37,11 +37,27 @@
 - **左侧面板**（~360px 宽面板）：当前位置、目的地搜索框、出行方式切换（驾车/步行/骑行）、搜索结果列表、开始导航按钮
 - **右侧地图**（flex: 1）：高德地图实例，占据剩余空间
 
+### Dashboard 布局适配
+
+现有 `app/dashboard/layout.tsx` 用 `max-w-7xl mx-auto px-4 py-8` 包裹 children，这会限制出行页面的全屏地图布局。解决方案：在 `app/dashboard/travel/` 下新建 `layout.tsx`，去掉 max-width 容器和 padding，让出行页面直接填满可用空间（`flex-1 overflow-hidden`，无 padding）。
+
+### 移动端布局
+
+移动端（<768px）采用全屏地图 + 底部面板方案：
+- 地图全屏展示
+- 搜索框浮在地图顶部
+- 搜索结果以半屏底部抽屉形式弹出
+- DetailCard 和 RouteInfoBar 显示在底部导航栏上方（z-index 高于底部导航）
+
+### 主题说明
+
+出行页面跟随系统主题（支持 light/dark），不强制浅色。设计以浅色为主，dark 模式通过 Tailwind `dark:` 变体适配。
+
 ## 交互流程
 
 ### 搜索流程
 
-1. 用户在搜索框输入关键词 → 调用 `AMap.PlaceSearch` 搜索 POI
+1. 用户在搜索框输入关键词（300ms 防抖，最少 2 个字符触发） → 调用 `AMap.PlaceSearch` 搜索 POI，最多返回 20 条结果
 2. 搜索结果显示在左侧列表（名称、地址、距离）
 3. 地图上同步标记搜索结果的位置点
 4. 用户点击列表中某项 → 地图居中到该点，选中状态高亮
@@ -87,6 +103,10 @@ NEXT_PUBLIC_AMAP_KEY=<高德 JS API Key>
 NEXT_PUBLIC_AMAP_SECURITY_CODE=<高德安全密钥>
 ```
 
+### 高德安全密钥初始化
+
+`lib/amap.ts` 在加载地图前设置 `window._AMapSecurityConfig = { securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE }`，然后调用 `AMapLoader.load()` 加载 JS API v2.0。
+
 ## 文件结构
 
 ```
@@ -95,7 +115,8 @@ components/
   MobileNav.tsx            ← 改造：记账/出行/设置 tab
 
 app/dashboard/travel/
-  page.tsx                 ← 页面入口，组合所有子组件
+  layout.tsx               ← 出行专用布局（去掉 max-width 容器）
+  page.tsx                 ← 页面入口（"use client"），组合所有子组件
 
 components/travel/
   MapContainer.tsx         ← 高德地图容器，管理地图实例
@@ -117,6 +138,30 @@ lib/
 
 使用 zustand 管理出行助手页面状态。地图实例通过 `useRef` 在 MapContainer 内持有，不放入 store。
 
+### 地图实例与组件通信
+
+MapContainer 通过 `useRef` 持有 AMap 实例，并暴露 `mapRef` 给 page.tsx。page.tsx 将 `mapRef` 通过 props 传递给需要操作地图的组件。地图操作（添加标记、绘制路线、平移缩放）由各组件通过 `mapRef.current` 直接调用。组件卸载时（离开出行页面），MapContainer 在 `useEffect` cleanup 中调用 `map.destroy()` 释放资源。
+
+### 类型定义
+
+```typescript
+interface POIResult {
+  id: string
+  name: string
+  address: string
+  location: { lng: number; lat: number }
+  distance?: number
+  type: string  // POI 类型/类别
+}
+
+interface POIDetail extends POIResult {
+  tel?: string
+  photos: { url: string }[]
+}
+```
+
+### Store 定义
+
 ```typescript
 interface TravelState {
   // 位置
@@ -131,7 +176,7 @@ interface TravelState {
   transportMode: 'driving' | 'walking' | 'riding'
 
   // 路径规划
-  routeInfo: { distance: string; duration: string } | null
+  routeInfo: { distance: number; duration: number } | null  // 米、秒
 
   // 地图选点详情
   selectedPOI: POIDetail | null
@@ -139,6 +184,7 @@ interface TravelState {
   // UI 状态
   isSearching: boolean
   isRouting: boolean
+  error: { type: string; message: string } | null
 
   // Actions
   setCurrentLocation: (loc) => void
@@ -148,6 +194,8 @@ interface TravelState {
   setTransportMode: (mode) => void
   setRouteInfo: (info) => void
   setSelectedPOI: (poi) => void
+  setError: (error) => void
+  clearError: () => void
   clearRoute: () => void
   reset: () => void
 }
@@ -160,3 +208,21 @@ interface TravelState {
 - 右侧：名称、地址、距离
 - 底部："去这里"按钮
 - 点击"去这里"以该点为目的地开始路径规划
+
+## 错误处理与加载状态
+
+### 加载状态
+
+- **地图加载中**：MapContainer 显示居中 spinner + "地图加载中..."
+- **搜索中**（`isSearching`）：搜索结果区域显示 skeleton 占位
+- **路径规划中**（`isRouting`）：底部浮层显示 spinner + "规划路线中..."
+
+### 错误处理
+
+所有错误通过 sonner toast 提示（与项目现有模式一致）：
+
+- 地图加载失败 → toast 错误提示，页面显示 fallback（"地图加载失败，请刷新重试"）
+- 搜索无结果 → 搜索结果区域显示"未找到相关地点"
+- 路径规划失败 → toast "无法规划该路线，请尝试其他出行方式"
+- 定位权限拒绝 → toast "定位权限被拒绝"，当前位置框变为可手动输入
+- 定位超时 → 同上，静默回退到手动输入
