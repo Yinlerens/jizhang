@@ -1,0 +1,67 @@
+<h2>地图选点 — 详情卡片样式</h2>
+<p class="subtitle">点击地图上的某个位置后，详情卡片应该如何展示？</p>
+
+<div class="cards">
+  <div class="card" data-choice="overlay" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #f5f5f5;">
+      <div style="display: flex; gap: 12px; height: 260px;">
+        <!-- Left Panel -->
+        <div style="width: 200px; background: #fff; border-radius: 8px; padding: 10px; font-size: 11px; color: #666; border: 1px solid #e0e0e0;">
+          <div style="background: #f0f7ff; border-radius: 6px; padding: 6px; text-align: center; color: #1677ff; font-size: 10px;">📍 当前位置</div>
+          <div style="margin-top: 6px; background: #f9f9f9; border-radius: 6px; padding: 6px; font-size: 10px;">🔍 搜索...</div>
+        </div>
+        <!-- Map with overlay card -->
+        <div style="flex: 1; background: #e8f0e8; border-radius: 8px; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px;">📍</div>
+          <!-- Overlay Detail Card -->
+          <div style="position: absolute; bottom: 12px; left: 12px; right: 12px; background: white; border-radius: 10px; padding: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); font-size: 11px;">
+            <div style="display: flex; gap: 8px;">
+              <div style="width: 60px; height: 60px; background: #ddd; border-radius: 6px; display: flex; align-items: center; justify-content: center;">🏪</div>
+              <div style="flex: 1;">
+                <div style="font-weight: bold; color: #333;">故宫博物院</div>
+                <div style="color: #999; font-size: 10px; margin-top: 2px;">北京市东城区景山前街4号</div>
+                <div style="color: #999; font-size: 10px;">距您 3.1km</div>
+              </div>
+            </div>
+            <div style="margin-top: 8px; background: #1677ff; color: white; padding: 6px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 11px;">🧭 去这里</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 地图底部浮层</h3>
+      <p>详情卡片浮在地图底部，不遮挡左侧面板。信息紧凑，包含图片、名称、地址和"去这里"按钮。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sidebar" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #f5f5f5;">
+      <div style="display: flex; gap: 12px; height: 260px;">
+        <!-- Left Panel (compressed) -->
+        <div style="width: 200px; background: #fff; border-radius: 8px; padding: 10px; font-size: 11px; color: #666; border: 1px solid #e0e0e0;">
+          <!-- Detail replaces search results -->
+          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+            <div style="color: #1677ff; font-size: 10px; cursor: pointer;">← 返回</div>
+          </div>
+          <div style="width: 100%; height: 80px; background: #ddd; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏪</div>
+          <div style="margin-top: 6px; font-weight: bold; color: #333; font-size: 12px;">故宫博物院</div>
+          <div style="color: #999; font-size: 10px; margin-top: 2px;">北京市东城区景山前街4号</div>
+          <div style="color: #999; font-size: 10px;">距您 3.1km</div>
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <span style="background: #f0f7ff; color: #1677ff; padding: 2px 6px; border-radius: 4px; font-size: 9px;">景点</span>
+            <span style="background: #fff7e6; color: #fa8c16; padding: 2px 6px; border-radius: 4px; font-size: 9px;">5A级</span>
+          </div>
+          <div style="margin-top: 8px; background: #1677ff; color: white; padding: 8px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 11px;">🧭 去这里</div>
+        </div>
+        <!-- Map -->
+        <div style="flex: 1; background: #e8f0e8; border-radius: 8px; position: relative;">
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px;">📍</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 左侧面板内展示</h3>
+      <p>详情替换左侧面板的搜索结果区域，提供"返回"按钮。可以显示更丰富的信息（标签、评分等），不遮挡地图。</p>
+    </div>
+  </div>
+</div>

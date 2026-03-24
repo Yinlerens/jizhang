@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/Users/mengfei/Desktop/CC/jizhang/.env*)",
+      "Bash(grep -r \"amap\\\\|高德\\\\|gaode\\\\|AMap\" /c/Users/mengfei/Desktop/CC/jizhang --include=*.tsx --include=*.ts --include=*.json)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"Map\\\\|map\\\\|location\\\\|Location\\\\|地点\\\\|位置\" /c/Users/mengfei/Desktop/CC/jizhang/lib /c/Users/mengfei/Desktop/CC/jizhang/components --include=*.tsx --include=*.ts)",
+      "Bash(bash scripts/start-server.sh --project-dir \"C:\\\\Users\\\\mengfei\\\\Desktop\\\\CC\\\\jizhang\")",
+      "Bash(pnpm add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm build:*)",
+      "Bash(ls \"C:/Users/mengfei/Desktop/CC/jizhang/app/dashboard/\\(padded\\)/\")"
+    ]
+  }
+}
