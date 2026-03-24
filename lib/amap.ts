@@ -1,9 +1,10 @@
-import AMapLoader from '@amap/amap-jsapi-loader'
-
 let AMapInstance: any = null
 
 export async function loadAMap(): Promise<any> {
   if (AMapInstance) return AMapInstance
+
+  // Dynamic import to avoid SSR — the package checks `window` at module level
+  const AMapLoader = (await import('@amap/amap-jsapi-loader')).default
 
   // Security config must be set before loading
   ;(window as any)._AMapSecurityConfig = {
