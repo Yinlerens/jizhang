@@ -15,9 +15,11 @@ const MapContainer = forwardRef<MapContainerRef>(function MapContainer(_, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const AMapRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const { setCurrentLocation, setSelectedPOI } = useTravelStore()
+  const searchResults = useTravelStore((s) => s.searchResults)
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
@@ -124,6 +126,37 @@ const MapContainer = forwardRef<MapContainerRef>(function MapContainer(_, ref) {
       }
     }
   }, [setCurrentLocation, setSelectedPOI])
+
+  // Show markers for search results
+  useEffect(() => {
+    const map = mapRef.current
+    const AMap = AMapRef.current
+    if (!map || !AMap) return
+
+    // Clear previous search markers
+    markersRef.current.forEach((m) => map.remove(m))
+    markersRef.current = []
+
+    if (searchResults.length === 0) return
+
+    const markers = searchResults.map((poi, index) => {
+      return new AMap.Marker({
+        position: [poi.location.lng, poi.location.lat],
+        label: {
+          content: `${index + 1}`,
+          direction: 'top',
+        },
+      })
+    })
+
+    map.add(markers)
+    markersRef.current = markers
+
+    // Fit view to show all markers
+    if (markers.length > 0) {
+      map.setFitView(markers)
+    }
+  }, [searchResults])
 
   if (error) {
     return (
