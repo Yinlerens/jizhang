@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import MapContainer, { type MapContainerRef } from '@/components/travel/MapContainer'
 import LeftPanel from '@/components/travel/LeftPanel'
 import DetailCard from '@/components/travel/DetailCard'
+import RouteInfoBar from '@/components/travel/RouteInfoBar'
 
 export default function TravelPage() {
   const mapContainerRef = useRef<MapContainerRef>(null)
@@ -14,6 +15,7 @@ export default function TravelPage() {
       <div className="flex-1 relative">
         <MapContainer ref={mapContainerRef} />
         <DetailCard />
+        <RouteInfoBar />
       </div>
     </div>
   )
