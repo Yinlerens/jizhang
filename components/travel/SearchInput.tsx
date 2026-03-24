@@ -1,0 +1,97 @@
+'use client'
+
+import { useCallback, useRef } from 'react'
+import { Search, X } from 'lucide-react'
+import { useTravelStore } from '@/lib/stores/travel-store'
+import type { MapContainerRef } from './MapContainer'
+import type { POIResult } from '@/lib/types'
+
+interface SearchInputProps {
+  mapRef: React.RefObject<MapContainerRef | null>
+}
+
+export default function SearchInput({ mapRef }: SearchInputProps) {
+  const {
+    searchKeyword,
+    setSearchKeyword,
+    setSearchResults,
+    setIsSearching,
+  } = useTravelStore()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const doSearch = useCallback(
+    (keyword: string) => {
+      const AMap = mapRef.current?.getAMap()
+      const map = mapRef.current?.getMap()
+      if (!AMap || !map) return
+
+      setIsSearching(true)
+
+      const placeSearch = new AMap.PlaceSearch({
+        pageSize: 20,
+        extensions: 'all',
+      })
+
+      placeSearch.search(keyword, (status: string, result: any) => {
+        setIsSearching(false)
+        if (status === 'complete' && result.poiList?.pois) {
+          const pois: POIResult[] = result.poiList.pois.map((poi: any) => ({
+            id: poi.id,
+            name: poi.name,
+            address: poi.address || '',
+            location: {
+              lng: poi.location.getLng(),
+              lat: poi.location.getLat(),
+            },
+            distance: poi.distance,
+            type: poi.type || '',
+          }))
+          setSearchResults(pois)
+        } else {
+          setSearchResults([])
+        }
+      })
+    },
+    [mapRef, setSearchResults, setIsSearching]
+  )
+
+  const handleChange = (value: string) => {
+    setSearchKeyword(value)
+
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    if (value.trim().length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    timerRef.current = setTimeout(() => {
+      doSearch(value.trim())
+    }, 300)
+  }
+
+  const handleClear = () => {
+    setSearchKeyword('')
+    setSearchResults([])
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <Search size={16} className="text-zinc-400 shrink-0" />
+        <input
+          type="text"
+          value={searchKeyword}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="搜索目的地"
+          className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 outline-none placeholder:text-zinc-400"
+        />
+        {searchKeyword && (
+          <button onClick={handleClear} className="text-zinc-400 hover:text-zinc-600">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

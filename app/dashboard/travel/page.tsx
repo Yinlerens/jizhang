@@ -1,18 +1,17 @@
 'use client'
 
+import { useRef } from 'react'
+import MapContainer, { type MapContainerRef } from '@/components/travel/MapContainer'
+import LeftPanel from '@/components/travel/LeftPanel'
+
 export default function TravelPage() {
+  const mapContainerRef = useRef<MapContainerRef>(null)
+
   return (
     <div className="flex h-full bg-white dark:bg-zinc-950">
-      {/* Left Panel */}
-      <div className="hidden md:flex w-[360px] flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="p-4">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">出行助手</h2>
-        </div>
-      </div>
-
-      {/* Map Container */}
-      <div className="flex-1 relative bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-        <p className="text-zinc-400">地图加载中...</p>
+      <LeftPanel mapRef={mapContainerRef} />
+      <div className="flex-1 relative">
+        <MapContainer ref={mapContainerRef} />
       </div>
     </div>
   )
