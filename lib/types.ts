@@ -28,3 +28,39 @@ export interface DashboardStats {
     spendingTrend: DailySpending[];
     categoryDistribution: CategorySpending[];
 }
+
+// === Travel Assistant Types ===
+
+export interface POIResult {
+  id: string
+  name: string
+  address: string
+  location: { lng: number; lat: number }
+  distance?: number
+  type: string
+}
+
+export interface POIDetail extends POIResult {
+  tel?: string
+  photos: { url: string }[]
+}
+
+export type TransportMode = 'driving' | 'walking' | 'riding'
+
+export interface RouteInfo {
+  distance: number  // meters
+  duration: number  // seconds
+}
+
+export interface LocationInfo {
+  lng: number
+  lat: number
+  address: string
+}
+
+export interface DestinationInfo {
+  lng: number
+  lat: number
+  name: string
+  address: string
+}
