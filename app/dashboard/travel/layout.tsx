@@ -4,7 +4,7 @@ export default function TravelLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex-1 h-full overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden">
       {children}
     </div>
   )
