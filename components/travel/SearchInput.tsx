@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
 import type { MapContainerRef } from './MapContainer'
@@ -17,13 +17,12 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
     setSearchResults,
     setIsSearching,
   } = useTravelStore()
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const doSearch = useCallback(
     (keyword: string) => {
       const AMap = mapRef.current?.getAMap()
       const map = mapRef.current?.getMap()
-      if (!AMap || !map) return
+      if (!AMap || !map || !keyword.trim()) return
 
       setIsSearching(true)
 
@@ -32,7 +31,7 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
         extensions: 'all',
       })
 
-      placeSearch.search(keyword, (status: string, result: any) => {
+      placeSearch.search(keyword.trim(), (status: string, result: any) => {
         setIsSearching(false)
         if (status === 'complete' && result.poiList?.pois) {
           const pois: POIResult[] = result.poiList.pois.map((poi: any) => ({
@@ -55,24 +54,13 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
     [mapRef, setSearchResults, setIsSearching]
   )
 
-  const handleChange = (value: string) => {
-    setSearchKeyword(value)
-
-    if (timerRef.current) clearTimeout(timerRef.current)
-
-    if (value.trim().length < 2) {
-      setSearchResults([])
-      return
-    }
-
-    timerRef.current = setTimeout(() => {
-      doSearch(value.trim())
-    }, 300)
-  }
-
   const handleClear = () => {
     setSearchKeyword('')
     setSearchResults([])
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') doSearch(searchKeyword)
   }
 
   return (
@@ -82,7 +70,8 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
         <input
           type="text"
           value={searchKeyword}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="搜索目的地"
           className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 outline-none placeholder:text-zinc-400"
         />
@@ -91,6 +80,12 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
             <X size={14} />
           </button>
         )}
+        <button
+          onClick={() => doSearch(searchKeyword)}
+          className="shrink-0 bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-xs font-medium px-3 py-1 rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+        >
+          搜索
+        </button>
       </div>
     </div>
   )

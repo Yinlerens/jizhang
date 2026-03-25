@@ -18,6 +18,7 @@ const MapContainer = forwardRef<MapContainerRef>(function MapContainer(_, ref) {
   const AMapRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
   const locationMarkerRef = useRef<any>(null)
+  const clickMarkerRef = useRef<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const { setCurrentLocation, setSelectedPOI } = useTravelStore()
@@ -104,6 +105,17 @@ const MapContainer = forwardRef<MapContainerRef>(function MapContainer(_, ref) {
         map.on('click', (e: any) => {
           const lnglat = [e.lnglat.getLng(), e.lnglat.getLat()]
 
+          // Place/move click marker
+          if (clickMarkerRef.current) {
+            clickMarkerRef.current.setPosition(lnglat)
+          } else {
+            clickMarkerRef.current = new AMap.Marker({
+              position: lnglat,
+              anchor: 'bottom-center',
+            })
+            map.add(clickMarkerRef.current)
+          }
+
           const geocoder = new AMap.Geocoder({ extensions: 'all' })
           const placeSearch = new AMap.PlaceSearch({ extensions: 'all', pageSize: 1 })
 
@@ -169,14 +181,9 @@ const MapContainer = forwardRef<MapContainerRef>(function MapContainer(_, ref) {
 
     if (searchResults.length === 0) return
 
-    const markers = searchResults.map((poi, index) => {
+    const markers = searchResults.map((poi) => {
       const marker = new AMap.Marker({
         position: [poi.location.lng, poi.location.lat],
-        label: {
-          content: `<span style="background:#3b82f6;color:#fff;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:600;">${index + 1}</span>`,
-          direction: 'top',
-          offset: new AMap.Pixel(0, -4),
-        },
         extData: poi,
       })
 
