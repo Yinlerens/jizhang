@@ -3,7 +3,9 @@
 import { MapPin } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
 import { formatDistance } from '@/lib/amap'
+import { loadAMap } from '@/lib/amap'
 import type { MapContainerRef } from './MapContainer'
+import type { POIDetail } from '@/lib/types'
 
 interface SearchResultsProps {
   mapRef: React.RefObject<MapContainerRef | null>
@@ -14,24 +16,42 @@ export default function SearchResults({ mapRef }: SearchResultsProps) {
     searchResults,
     isSearching,
     searchKeyword,
-    setDestination,
-    destination,
+    selectedPOI,
   } = useTravelStore()
 
-  const handleSelect = (poi: (typeof searchResults)[0]) => {
-    setDestination({
-      lng: poi.location.lng,
-      lat: poi.location.lat,
-      name: poi.name,
-      address: poi.address,
-    })
-
+  const handleSelect = async (poi: (typeof searchResults)[0]) => {
     // Center map on selected POI
     const map = mapRef.current?.getMap()
-    const AMap = mapRef.current?.getAMap()
-    if (map && AMap) {
+    if (map) {
       map.setCenter([poi.location.lng, poi.location.lat])
       map.setZoom(16)
+    }
+
+    // Build detail and show detail card
+    const detail: POIDetail = {
+      id: poi.id,
+      name: poi.name,
+      address: poi.address,
+      location: poi.location,
+      type: poi.type || '',
+      photos: [],
+      tel: undefined,
+    }
+
+    // Try to fetch richer POI info (photos, tel)
+    try {
+      const AMap = await loadAMap()
+      const placeSearch = new AMap.PlaceSearch({ extensions: 'all' })
+      placeSearch.getDetails(poi.id, (status: string, result: any) => {
+        if (status === 'complete' && result.poiList?.pois?.[0]) {
+          const rich = result.poiList.pois[0]
+          detail.photos = rich.photos?.map((p: any) => ({ url: p.url })) || []
+          detail.tel = rich.tel || undefined
+        }
+        useTravelStore.getState().setSelectedPOI(detail)
+      })
+    } catch {
+      useTravelStore.getState().setSelectedPOI(detail)
     }
   }
 
@@ -64,8 +84,7 @@ export default function SearchResults({ mapRef }: SearchResultsProps) {
   return (
     <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
       {searchResults.map((poi) => {
-        const isSelected =
-          destination?.lng === poi.location.lng && destination?.lat === poi.location.lat
+        const isSelected = selectedPOI?.id === poi.id
         return (
           <button
             key={poi.id}
@@ -92,7 +111,7 @@ export default function SearchResults({ mapRef }: SearchResultsProps) {
               </p>
               <p className="text-xs text-zinc-500 truncate mt-0.5">{poi.address}</p>
             </div>
-            {poi.distance != null && (
+            {formatDistance(poi.distance) && (
               <span className="text-xs text-zinc-400 shrink-0 mt-0.5">
                 {formatDistance(poi.distance)}
               </span>

@@ -28,11 +28,13 @@ export async function loadAMap(): Promise<any> {
   return AMapInstance
 }
 
-export function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)}米`
+export function formatDistance(meters: number | string | undefined): string {
+  const m = Number(meters)
+  if (!m || isNaN(m)) return ''
+  if (m < 1000) {
+    return `${Math.round(m)}米`
   }
-  return `${(meters / 1000).toFixed(1)}公里`
+  return `${(m / 1000).toFixed(1)}公里`
 }
 
 export function formatDuration(seconds: number): string {
