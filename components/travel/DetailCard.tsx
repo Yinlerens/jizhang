@@ -2,8 +2,14 @@
 
 import { X, Navigation } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
+import { planRoute } from '@/lib/route'
+import type { MapContainerRef } from './MapContainer'
 
-export default function DetailCard() {
+interface DetailCardProps {
+  mapRef: React.RefObject<MapContainerRef | null>
+}
+
+export default function DetailCard({ mapRef }: DetailCardProps) {
   const { selectedPOI, setSelectedPOI, setDestination } = useTravelStore()
 
   if (!selectedPOI) return null
@@ -16,6 +22,9 @@ export default function DetailCard() {
       address: selectedPOI.address,
     })
     setSelectedPOI(null)
+
+    // Start route planning immediately
+    setTimeout(() => planRoute(mapRef), 0)
   }
 
   const handleClose = () => {
@@ -32,7 +41,6 @@ export default function DetailCard() {
       </button>
 
       <div className="flex gap-3">
-        {/* Photo */}
         {selectedPOI.photos.length > 0 ? (
           <img
             src={selectedPOI.photos[0].url}
