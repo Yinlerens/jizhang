@@ -12,22 +12,30 @@ interface SearchResultsProps {
 }
 
 export default function SearchResults({ mapRef }: SearchResultsProps) {
-  const {
-    searchResults,
-    isSearching,
-    searchKeyword,
-    selectedPOI,
-  } = useTravelStore()
+  // 使用选择器精确订阅，避免无关状态变化触发重渲染
+  const searchResults = useTravelStore((s) => s.searchResults)
+  const isSearching = useTravelStore((s) => s.isSearching)
+  const searchKeyword = useTravelStore((s) => s.searchKeyword)
+  const selectedPOI = useTravelStore((s) => s.selectedPOI)
 
+  /** 选择 POI：居中地图、设为目的地、展示详情卡片 */
   const handleSelect = async (poi: (typeof searchResults)[0]) => {
-    // Center map on selected POI
+    // 将地图中心移动到选中的 POI
     const map = mapRef.current?.getMap()
     if (map) {
       map.setCenter([poi.location.lng, poi.location.lat])
       map.setZoom(16)
     }
 
-    // Build detail and show detail card
+    // 同步更新目的地，确保"开始导航"使用正确的目的地
+    useTravelStore.getState().setDestination({
+      lng: poi.location.lng,
+      lat: poi.location.lat,
+      name: poi.name,
+      address: poi.address,
+    })
+
+    // 构建 POI 详情对象
     const detail: POIDetail = {
       id: poi.id,
       name: poi.name,
@@ -38,14 +46,14 @@ export default function SearchResults({ mapRef }: SearchResultsProps) {
       tel: undefined,
     }
 
-    // Try to fetch richer POI info (photos, tel)
+    // 尝试获取更丰富的 POI 信息（照片、电话）
     try {
       const AMap = await loadAMap()
       const placeSearch = new AMap.PlaceSearch({ extensions: 'all' })
       placeSearch.getDetails(poi.id, (status: string, result: any) => {
         if (status === 'complete' && result.poiList?.pois?.[0]) {
           const rich = result.poiList.pois[0]
-          detail.photos = rich.photos?.map((p: any) => ({ url: p.url })) || []
+          detail.photos = Array.isArray(rich.photos) ? rich.photos.map((p: any) => ({ url: p.url })) : []
           detail.tel = rich.tel || undefined
         }
         useTravelStore.getState().setSelectedPOI(detail)

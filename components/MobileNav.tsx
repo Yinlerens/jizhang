@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, Navigation, Settings } from 'lucide-react'
+import { Wallet, Navigation, Settings, BrainCircuit, Orbit } from 'lucide-react'
 
 const tabs = [
     { icon: Wallet, label: '记账', href: '/dashboard', matchPaths: ['/dashboard', '/dashboard/transactions', '/dashboard/stats'] },
     { icon: Navigation, label: '出行', href: '/dashboard/travel', matchPaths: ['/dashboard/travel'] },
+    { icon: BrainCircuit, label: 'Gemini', href: '/dashboard/gemini/tetris', matchPaths: ['/dashboard/gemini'] },
+    { icon: Orbit, label: 'AG', href: '/dashboard/antigravity/tetris', matchPaths: ['/dashboard/antigravity'] },
     { icon: Settings, label: '设置', href: '/dashboard/settings', matchPaths: ['/dashboard/settings'] },
 ]
 

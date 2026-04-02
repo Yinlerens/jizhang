@@ -2,19 +2,19 @@
 
 import React, { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { 
-  UserPlus, 
-  Trash2, 
-  Coins, 
-  Undo2, 
-  History, 
-  Users, 
+import {
+  UserPlus,
+  Trash2,
+  Coins,
+  Undo2,
+  History,
+  Users,
   RefreshCw,
   Plus,
-  ArrowLeft
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner"
+import { toast } from "sonner";
 const supabase = createClient();
 
 export default function GameAdminDemo() {
@@ -22,9 +22,9 @@ export default function GameAdminDemo() {
   const [players, setPlayers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [newUsername, setNewUsername] = useState("");
-  
+
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("");
@@ -38,7 +38,7 @@ export default function GameAdminDemo() {
       .from("players")
       .select("*")
       .order("created_at", { ascending: false });
-    
+
     const { data: logsData } = await supabase
       .from("balance_logs")
       .select("*, players(username)")
@@ -55,10 +55,8 @@ export default function GameAdminDemo() {
 
   const addPlayer = async () => {
     if (!newUsername) return;
-    const { error } = await supabase
-      .from("players")
-      .insert({ username: newUsername });
-    
+    const { error } = await supabase.from("players").insert({ username: newUsername });
+
     if (error) toast(error.message);
     else {
       setNewUsername("");
@@ -72,7 +70,7 @@ export default function GameAdminDemo() {
       .from("players")
       .update({ username: editUsername })
       .eq("id", editingPlayer.id);
-    
+
     if (error) toast(error.message);
     else {
       setEditingPlayer(null);
@@ -92,7 +90,7 @@ export default function GameAdminDemo() {
     const { error } = await supabase.rpc("admin_give_money", {
       target_player_id: selectedPlayer.id,
       amount_to_give: amount,
-      give_reason: reason || "管理员发放"
+      give_reason: reason || "管理员发放",
     });
 
     if (error) toast(error.message);
@@ -110,7 +108,7 @@ export default function GameAdminDemo() {
 
     const { error } = await supabase.rpc("admin_revoke_money", {
       log_entry_id: logId,
-      revoke_reason: revokeReason
+      revoke_reason: revokeReason,
     });
 
     if (error) toast(error.message);
@@ -119,7 +117,10 @@ export default function GameAdminDemo() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto font-sans bg-gray-50 min-h-screen">
-      <Link href="/test" className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 mb-6 transition-colors">
+      <Link
+        href="/test"
+        className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 mb-6 transition-colors"
+      >
         <ArrowLeft size={16} /> 返回测试列表
       </Link>
 
@@ -127,17 +128,17 @@ export default function GameAdminDemo() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
             <div className="bg-yellow-100 p-2 rounded-lg">
-                <Coins className="text-yellow-600" size={24} />
+              <Coins className="text-yellow-600" size={24} />
             </div>
             Demo
           </h1>
         </div>
-        <button 
+        <button
           onClick={fetchData}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm active:scale-95"
           title="刷新数据"
         >
-          <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? "animate-spin" : ""}`} />
           <span className="text-sm font-medium text-gray-700">刷新数据</span>
         </button>
       </header>
@@ -147,7 +148,9 @@ export default function GameAdminDemo() {
         <button
           onClick={() => setActiveTab("players")}
           className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-            activeTab === "players" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            activeTab === "players"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
           }`}
         >
           <Users size={18} /> 列表
@@ -155,7 +158,9 @@ export default function GameAdminDemo() {
         <button
           onClick={() => setActiveTab("logs")}
           className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-            activeTab === "logs" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            activeTab === "logs"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
           }`}
         >
           <History size={18} /> 余额流水
@@ -171,7 +176,9 @@ export default function GameAdminDemo() {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">玩家用户名</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
+                  玩家用户名
+                </label>
                 <input
                   type="text"
                   value={newUsername}
@@ -193,71 +200,75 @@ export default function GameAdminDemo() {
           {/* Players Table Section */}
           <section className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">用户名</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-right">当前余额</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-center">操作管理</th>
-                    </tr>
+                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-right">
+                      当前余额
+                    </th>
+                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-center">
+                      操作管理
+                    </th>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                    {players.length > 0 ? (
+                  {players.length > 0 ? (
                     players.map((player) => (
-                        <tr key={player.id} className="hover:bg-gray-50/30 transition-colors group">
+                      <tr key={player.id} className="hover:bg-gray-50/30 transition-colors group">
                         <td className="px-6 py-5">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
-                                    {player.username.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="font-bold text-gray-800">{player.username}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+                              {player.username.charAt(0).toUpperCase()}
                             </div>
+                            <span className="font-bold text-gray-800">{player.username}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-5 text-right">
-                            <span className="text-yellow-600 font-black text-lg">
+                          <span className="text-yellow-600 font-black text-lg">
                             🪙 {player.balance.toLocaleString()}
-                            </span>
+                          </span>
                         </td>
                         <td className="px-6 py-5">
-                            <div className="flex justify-center gap-2">
+                          <div className="flex justify-center gap-2">
                             <button
-                                onClick={() => {
+                              onClick={() => {
                                 setEditingPlayer(player);
                                 setEditUsername(player.username);
-                                }}
-                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors font-bold text-xs"
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors font-bold text-xs"
                             >
-                                编辑
+                              编辑
                             </button>
                             <button
-                                onClick={() => setSelectedPlayer(player)}
-                                className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold text-xs"
+                              onClick={() => setSelectedPlayer(player)}
+                              className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold text-xs"
                             >
-                                <Plus size={14} /> 发钱
+                              <Plus size={14} /> 发钱
                             </button>
                             <button
-                                onClick={() => deletePlayer(player.id)}
-                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                title="删除玩家"
+                              onClick={() => deletePlayer(player.id)}
+                              className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="删除玩家"
                             >
-                                <Trash2 size={16} />
+                              <Trash2 size={16} />
                             </button>
-                            </div>
+                          </div>
                         </td>
-                        </tr>
+                      </tr>
                     ))
-                    ) : (
+                  ) : (
                     <tr>
-                        <td colSpan={3} className="px-6 py-16 text-center">
-                            <div className="flex flex-col items-center gap-2">
-                                <Users size={40} className="text-gray-200" />
-                                <p className="text-gray-400 font-medium">暂无玩家数据，请先创建。</p>
-                            </div>
-                        </td>
+                      <td colSpan={3} className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users size={40} className="text-gray-200" />
+                          <p className="text-gray-400 font-medium">暂无玩家数据，请先创建。</p>
+                        </div>
+                      </td>
                     </tr>
-                    )}
+                  )}
                 </tbody>
-                </table>
+              </table>
             </div>
           </section>
         </div>
@@ -266,67 +277,78 @@ export default function GameAdminDemo() {
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-                <thead>
+              <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">操作时间</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">玩家</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-right">变动金额</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">类型</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">备注</th>
-                    <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-center">操作</th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">操作时间</th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">玩家</th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-right">
+                    变动金额
+                  </th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">类型</th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase">备注</th>
+                  <th className="px-6 py-4 font-bold text-gray-400 text-xs uppercase text-center">
+                    操作
+                  </th>
                 </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
+              </thead>
+              <tbody className="divide-y divide-gray-50">
                 {logs.length > 0 ? (
-                    logs.map((log) => (
+                  logs.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50/30 transition-colors text-sm">
-                        <td className="px-6 py-5 text-gray-500 whitespace-nowrap">
-                        {new Date(log.created_at).toLocaleString('zh-CN', { hour12: false })}
-                        </td>
-                        <td className="px-6 py-5 font-bold text-gray-700">
+                      <td className="px-6 py-5 text-gray-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString("zh-CN", { hour12: false })}
+                      </td>
+                      <td className="px-6 py-5 font-bold text-gray-700">
                         {log.players?.username || "已删除玩家"}
-                        </td>
-                        <td className={`px-6 py-5 text-right font-black text-base ${
-                        log.amount > 0 ? "text-green-600" : "text-red-600"
-                        }`}>
-                        {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-5">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                            log.type === "give" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}>
-                            {log.type === "give" ? "发放" : "收回"}
+                      </td>
+                      <td
+                        className={`px-6 py-5 text-right font-black text-base ${
+                          log.amount > 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {log.amount > 0 ? "+" : ""}
+                        {log.amount.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-5">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            log.type === "give"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {log.type === "give" ? "发放" : "收回"}
                         </span>
-                        </td>
-                        <td className="px-6 py-5 text-gray-500 max-w-50 truncate" title={log.reason}>
+                      </td>
+                      <td className="px-6 py-5 text-gray-500 max-w-50 truncate" title={log.reason}>
                         {log.reason}
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                        {log.type === "give" && !logs.some(l => l.original_log_id === log.id) && (
-                            <button
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        {log.type === "give" && !logs.some((l) => l.original_log_id === log.id) && (
+                          <button
                             onClick={() => revokeMoney(log.id)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-[11px] font-black"
-                            >
+                          >
                             <Undo2 size={12} /> 撤回
-                            </button>
+                          </button>
                         )}
-                        {log.type === "give" && logs.some(l => l.original_log_id === log.id) && (
-                            <span className="text-gray-300 text-[10px] font-bold italic">已撤回</span>
+                        {log.type === "give" && logs.some((l) => l.original_log_id === log.id) && (
+                          <span className="text-gray-300 text-[10px] font-bold italic">已撤回</span>
                         )}
-                        </td>
+                      </td>
                     </tr>
-                    ))
+                  ))
                 ) : (
-                    <tr>
+                  <tr>
                     <td colSpan={6} className="px-6 py-16 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                            <History size={40} className="text-gray-200" />
-                            <p className="text-gray-400 font-medium">暂无流水记录。</p>
-                        </div>
+                      <div className="flex flex-col items-center gap-2">
+                        <History size={40} className="text-gray-200" />
+                        <p className="text-gray-400 font-medium">暂无流水记录。</p>
+                      </div>
                     </td>
-                    </tr>
+                  </tr>
                 )}
-                </tbody>
+              </tbody>
             </table>
           </div>
         </section>
@@ -339,7 +361,9 @@ export default function GameAdminDemo() {
             <h3 className="text-2xl font-black mb-8 text-gray-800">编辑玩家</h3>
             <div className="space-y-6">
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">用户名</label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                  用户名
+                </label>
                 <input
                   type="text"
                   value={editUsername}
@@ -376,19 +400,23 @@ export default function GameAdminDemo() {
               </div>
               发放金币
             </h3>
-            
+
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-8">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">目标玩家</p>
-              <p className="text-lg font-bold text-gray-800">
-                {selectedPlayer.username}
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                目标玩家
               </p>
+              <p className="text-lg font-bold text-gray-800">{selectedPlayer.username}</p>
             </div>
 
             <div className="space-y-6">
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">发放金额</label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                  发放金额
+                </label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600 font-bold">🪙</div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600 font-bold">
+                    🪙
+                  </div>
                   <input
                     type="number"
                     value={amount}
@@ -398,7 +426,9 @@ export default function GameAdminDemo() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">备注原因</label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                  备注原因
+                </label>
                 <textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}

@@ -10,10 +10,14 @@ interface DetailCardProps {
 }
 
 export default function DetailCard({ mapRef }: DetailCardProps) {
-  const { selectedPOI, setSelectedPOI, setDestination } = useTravelStore()
+  // 使用选择器精确订阅，避免无关状态变化触发重渲染
+  const selectedPOI = useTravelStore((s) => s.selectedPOI)
+  const setSelectedPOI = useTravelStore((s) => s.setSelectedPOI)
+  const setDestination = useTravelStore((s) => s.setDestination)
 
   if (!selectedPOI) return null
 
+  /** 点击"去这里"：设置目的地并立即规划路线 */
   const handleGoHere = () => {
     setDestination({
       lng: selectedPOI.location.lng,
@@ -23,16 +27,17 @@ export default function DetailCard({ mapRef }: DetailCardProps) {
     })
     setSelectedPOI(null)
 
-    // Start route planning immediately
+    // 立即触发路线规划
     setTimeout(() => planRoute(mapRef), 0)
   }
 
+  /** 关闭详情卡片 */
   const handleClose = () => {
     setSelectedPOI(null)
   }
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[360px] bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
+    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-90 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
       <button
         onClick={handleClose}
         className="absolute top-3 right-3 text-zinc-400 hover:text-zinc-600"

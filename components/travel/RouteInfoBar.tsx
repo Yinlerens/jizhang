@@ -21,7 +21,7 @@ export default function RouteInfoBar() {
 
   if (isRouting) {
     return (
-      <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[360px] bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
+      <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-90 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
         <div className="flex items-center justify-center gap-2 text-zinc-400">
           <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
           <span className="text-sm">规划路线中...</span>
@@ -35,7 +35,7 @@ export default function RouteInfoBar() {
   const ModeIcon = modeIcons[transportMode]
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[360px] bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
+    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-90 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 p-4">
       <button
         onClick={clearRoute}
         className="absolute top-3 right-3 text-zinc-400 hover:text-zinc-600"

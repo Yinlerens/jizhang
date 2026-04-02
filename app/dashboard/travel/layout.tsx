@@ -1,11 +1,3 @@
-export default function TravelLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    <div className="absolute inset-0 overflow-hidden">
-      {children}
-    </div>
-  )
+export default function TravelLayout({ children }: { children: React.ReactNode }) {
+  return <div className="h-dvh overflow-hidden">{children}</div>;
 }

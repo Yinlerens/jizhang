@@ -11,12 +11,11 @@ interface SearchInputProps {
 }
 
 export default function SearchInput({ mapRef }: SearchInputProps) {
-  const {
-    searchKeyword,
-    setSearchKeyword,
-    setSearchResults,
-    setIsSearching,
-  } = useTravelStore()
+  // 使用选择器精确订阅，避免无关状态变化触发重渲染
+  const searchKeyword = useTravelStore((s) => s.searchKeyword)
+  const setSearchKeyword = useTravelStore((s) => s.setSearchKeyword)
+  const setSearchResults = useTravelStore((s) => s.setSearchResults)
+  const setIsSearching = useTravelStore((s) => s.setIsSearching)
 
   const doSearch = useCallback(
     (keyword: string) => {
@@ -26,6 +25,9 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
 
       setIsSearching(true)
 
+      // 获取当前位置，用于计算搜索结果的距离
+      const currentLocation = useTravelStore.getState().currentLocation
+
       const placeSearch = new AMap.PlaceSearch({
         pageSize: 20,
         extensions: 'all',
@@ -34,17 +36,27 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
       placeSearch.search(keyword.trim(), (status: string, result: any) => {
         setIsSearching(false)
         if (status === 'complete' && result.poiList?.pois) {
-          const pois: POIResult[] = result.poiList.pois.map((poi: any) => ({
-            id: poi.id,
-            name: poi.name,
-            address: poi.address || '',
-            location: {
-              lng: poi.location.getLng(),
-              lat: poi.location.getLat(),
-            },
-            distance: poi.distance,
-            type: poi.type || '',
-          }))
+          const pois: POIResult[] = result.poiList.pois.map((poi: any) => {
+            const lng = poi.location.getLng()
+            const lat = poi.location.getLat()
+
+            // PlaceSearch.search 不返回 distance，手动计算与当前位置的直线距离
+            let distance: number | undefined
+            if (currentLocation) {
+              const from = new AMap.LngLat(currentLocation.lng, currentLocation.lat)
+              const to = new AMap.LngLat(lng, lat)
+              distance = Math.round(from.distance(to))
+            }
+
+            return {
+              id: poi.id,
+              name: poi.name,
+              address: poi.address || '',
+              location: { lng, lat },
+              distance,
+              type: poi.type || '',
+            }
+          })
           setSearchResults(pois)
         } else {
           setSearchResults([])

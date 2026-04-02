@@ -29,35 +29,41 @@ export interface DashboardStats {
     categoryDistribution: CategorySpending[];
 }
 
-// === Travel Assistant Types ===
+// === 出行助手类型定义 ===
 
+/** POI 搜索结果 */
 export interface POIResult {
   id: string
   name: string
   address: string
   location: { lng: number; lat: number }
-  distance?: number
+  distance?: number   // 距离（米）
   type: string
 }
 
+/** POI 详情（含照片和电话） */
 export interface POIDetail extends POIResult {
   tel?: string
   photos: { url: string }[]
 }
 
+/** 出行方式：驾车 | 步行 | 骑行 */
 export type TransportMode = 'driving' | 'walking' | 'riding'
 
+/** 路线信息 */
 export interface RouteInfo {
-  distance: number  // meters
-  duration: number  // seconds
+  distance: number  // 距离（米）
+  duration: number  // 时长（秒）
 }
 
+/** 当前位置信息 */
 export interface LocationInfo {
   lng: number
   lat: number
   address: string
 }
 
+/** 目的地信息 */
 export interface DestinationInfo {
   lng: number
   lat: number

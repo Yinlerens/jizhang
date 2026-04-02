@@ -16,7 +16,7 @@ interface LeftPanelProps {
 
 export default function LeftPanel({ mapRef }: LeftPanelProps) {
   return (
-    <div className="hidden md:flex w-[360px] flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <div className="hidden md:flex w-90 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="p-4 space-y-3">
         <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">出行助手</h2>
         <LocationInput />
@@ -34,9 +34,12 @@ export default function LeftPanel({ mapRef }: LeftPanelProps) {
 }
 
 function NavigateButton({ mapRef }: { mapRef: React.RefObject<MapContainerRef | null> }) {
-  const { destination, currentLocation, transportMode } = useTravelStore()
+  // 使用选择器精确订阅，避免无关状态变化触发重渲染
+  const destination = useTravelStore((s) => s.destination)
+  const currentLocation = useTravelStore((s) => s.currentLocation)
+  const transportMode = useTravelStore((s) => s.transportMode)
 
-  // Re-plan when transport mode changes and there's an active route
+  // 出行方式切换时，若已有路线则重新规划
   useEffect(() => {
     const { routeInfo, destination, currentLocation } = useTravelStore.getState()
     if (routeInfo && destination && currentLocation) {

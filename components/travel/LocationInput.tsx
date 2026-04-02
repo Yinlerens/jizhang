@@ -14,7 +14,9 @@ interface Suggestion {
 }
 
 export default function LocationInput() {
-  const { currentLocation, setCurrentLocation } = useTravelStore()
+  // 使用选择器精确订阅，避免无关状态变化触发重渲染
+  const currentLocation = useTravelStore((s) => s.currentLocation)
+  const setCurrentLocation = useTravelStore((s) => s.setCurrentLocation)
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -117,7 +119,7 @@ export default function LocationInput() {
         )}
       </div>
 
-      {/* Suggestions dropdown */}
+      {/* 地址搜索建议下拉列表 */}
       {isEditing && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-lg z-30 max-h-48 overflow-y-auto">
           {suggestions.map((s, i) => (
