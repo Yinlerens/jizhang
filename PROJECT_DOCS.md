@@ -23,7 +23,7 @@
 
 ### 监控与分析
 - **Error Tracking**: [Sentry](https://sentry.io/)
-- **Analytics**: [PostHog](https://posthog.com/), Vercel Analytics, Vercel Speed Insights
+- **Analytics**: Vercel Analytics, Vercel Speed Insights
 
 ## 3. 目录结构
 
@@ -38,7 +38,7 @@ jizhang/
 │   └── page.tsx            # 首页 (重定向逻辑)
 ├── components/             # UI 组件
 │   ├── dashboard/          # 仪表盘专用组件
-│   ├── providers/          # React Context Providers (如 PostHog)
+│   ├── providers/          # React Context Providers
 │   ├── Sidebar.tsx         # 侧边栏导航
 │   └── MobileNav.tsx       # 移动端导航
 ├── lib/                    # 核心逻辑与工具函数
@@ -48,7 +48,6 @@ jizhang/
 │   │   ├── client.ts       # Browser Client
 │   │   ├── server.ts       # Server Client (Cookie handling)
 │   │   └── middleware.ts   # Middleware logic
-│   ├── tracking.ts         # 埋点/追踪工具
 │   └── export.ts           # 导出功能
 ├── public/                 # 静态资源
 ├── types/                  # TypeScript 类型定义
@@ -79,7 +78,7 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-如果有监控需求，还需要配置 Sentry 和 PostHog 的相关变量。
+如果有监控需求，还需要配置 Sentry 的相关变量。
 
 ### 3. 启动开发服务器
 

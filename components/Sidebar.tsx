@@ -12,10 +12,6 @@ import {
   Navigation,
   MapPin,
   ChevronDown,
-  BrainCircuit,
-  Sparkles,
-  Orbit,
-  Gamepad2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -42,20 +38,6 @@ const menuGroups: MenuGroup[] = [
     icon: Navigation,
     items: [
       { icon: MapPin, label: "出行助手", href: "/dashboard/travel" },
-    ],
-  },
-  {
-    label: "Gemini 实验室",
-    icon: BrainCircuit,
-    items: [
-      { icon: Sparkles, label: "俄罗斯方块", href: "/dashboard/gemini/tetris" },
-    ],
-  },
-  {
-    label: "Antigravity 实验室",
-    icon: Orbit,
-    items: [
-      { icon: Gamepad2, label: "俄罗斯方块", href: "/dashboard/antigravity/tetris" },
     ],
   },
 ];

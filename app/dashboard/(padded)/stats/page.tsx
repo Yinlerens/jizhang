@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -11,12 +11,12 @@ export default function StatsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
     const [mounted, setMounted] = useState(false)
-    const supabase = createClient()
+    const supabaseRef = useRef(createClient())
 
     useEffect(() => {
         setMounted(true)
         const fetchTransactions = async () => {
-            const { data } = await supabase
+            const { data } = await supabaseRef.current
                 .from('transactions')
                 .select('*')
                 .order('occurred_at', { ascending: false })

@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-const supabase = createClient();
 
 export default function GameAdminDemo() {
+  const supabase = createClient();
   const [activeTab, setActiveTab] = useState<"players" | "logs">("players");
   const [players, setPlayers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);

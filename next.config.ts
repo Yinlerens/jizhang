@@ -5,21 +5,22 @@ const nextConfig: NextConfig = {
   // 启用 React 编译器（React 19 新特性）
   reactCompiler: true,
 
-  // URL 重写规则：将 PostHog 请求代理到自己的服务器，绕过广告拦截器
   async rewrites() {
     return [
       {
-        source: '/ph/static/:path*',  // 匹配 /ph/static/* 的请求
-        destination: 'https://us-assets.i.posthog.com/static/:path*',  // 转发到 PostHog 静态资源
+        source: '/ingest/static/:path*',
+        destination: 'https://us-assets.i.posthog.com/static/:path*',
       },
       {
-        source: '/ph/:path*',  // 匹配 /ph/* 的请求
-        destination: 'https://us.i.posthog.com/:path*',  // 转发到 PostHog API
+        source: '/ingest/:path*',
+        destination: 'https://us.i.posthog.com/:path*',
+      },
+      {
+        source: '/ingest/decide',
+        destination: 'https://us.i.posthog.com/decide',
       },
     ]
   },
-
-  // 跳过尾部斜杠重定向（避免与 PostHog 代理冲突）
   skipTrailingSlashRedirect: true,
 };
 

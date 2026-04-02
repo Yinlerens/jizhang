@@ -3,9 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { PostHogProvider } from "@/components/providers/PostHogProvider";
-import { PostHogPageView } from "@/components/providers/PostHogPageView";
 import { Toaster } from "@/components/ui/sonner"
+import { PostHogProvider } from "@/components/providers/PostHogProvider"
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,12 +29,11 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <PostHogProvider>
-          <PostHogPageView />
           {children}
+          <Analytics />
+          <SpeedInsights />
+          <Toaster/>
         </PostHogProvider>
-        <Analytics />
-        <SpeedInsights />
-        <Toaster/>
       </body>
     </html>
   );

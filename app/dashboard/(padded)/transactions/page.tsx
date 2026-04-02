@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Transaction } from '@/lib/types'
 import { format } from 'date-fns'
@@ -35,11 +35,11 @@ export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
-    const supabase = createClient()
+    const supabaseRef = useRef(createClient())
 
     useEffect(() => {
         const fetchTransactions = async () => {
-            const { data } = await supabase
+            const { data } = await supabaseRef.current
                 .from('transactions')
                 .select('*')
                 .order('occurred_at', { ascending: false })
