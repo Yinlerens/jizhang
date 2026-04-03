@@ -144,6 +144,25 @@ function toBangumiItem(subject: BangumiSubject, aniListMatch: AniListMedia | nul
   }
 }
 
+function toAniListItem(media: AniListMedia): AnimeItem {
+  return {
+    id: -media.id,
+    name: media.title.native || media.title.romaji,
+    nameCn: media.title.native || media.title.romaji,
+    nameEn: media.title.english ?? null,
+    summary: '',
+    airDate: '',
+    episodeCount: media.episodes ?? 0,
+    coverImage: media.coverImage?.large || '',
+    ratingBangumi: null,
+    ratingAniList: media.averageScore ? +(media.averageScore / 10).toFixed(1) : null,
+    tags: [],
+    status: media.status === 'RELEASING' ? 'airing'
+      : media.status === 'NOT_YET_RELEASED' ? 'upcoming'
+      : 'finished',
+  }
+}
+
 export async function searchBangumi(keyword: string, offset = 0, limit = 24): Promise<AnimeSearchResult> {
   if (!keyword.trim()) {
     return { items: [], total: 0, hasMore: false }
@@ -161,15 +180,26 @@ export async function searchBangumi(keyword: string, offset = 0, limit = 24): Pr
     throw new Error('搜索失败，请稍后重试')
   }
 
+  const matchedAniListIds = new Set<number>()
+
   const items = (bangumiData.data ?? []).map((subject) => {
     const aniListMatch = matchAniListData(subject.name, aniListData)
       ?? (subject.name_cn ? matchAniListData(subject.name_cn, aniListData) : null)
+    if (aniListMatch) matchedAniListIds.add(aniListMatch.id)
     return toBangumiItem(subject, aniListMatch)
   })
 
+  // Append AniList-only results that Bangumi didn't return
+  if (offset === 0) {
+    const aniListOnly = aniListData
+      .filter((m) => !matchedAniListIds.has(m.id))
+      .map(toAniListItem)
+    items.push(...aniListOnly)
+  }
+
   return {
     items,
-    total: bangumiData.total,
+    total: bangumiData.total + (offset === 0 ? aniListData.filter((m) => !matchedAniListIds.has(m.id)).length : 0),
     hasMore: offset + limit < bangumiData.total,
   }
 }
