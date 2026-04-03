@@ -147,10 +147,22 @@ export async function searchBangumi(keyword: string, offset = 0, limit = 24): Pr
     throw new Error('搜索失败，请稍后重试')
   }
 
-  const items = (bangumiData.data ?? []).map((subject) => {
+  const normalizedKeyword = keyword.toLowerCase()
+  const allItems = (bangumiData.data ?? []).map((subject) => {
     const aniListMatch = matchAniListData(subject.name, aniListData)
       ?? (subject.name_cn ? matchAniListData(subject.name_cn, aniListData) : null)
     return toBangumiItem(subject, aniListMatch)
+  })
+
+  // Sort: exact/substring matches on title first, then the rest
+  const items = allItems.sort((a, b) => {
+    const aMatch = a.nameCn.toLowerCase().includes(normalizedKeyword)
+      || a.name.toLowerCase().includes(normalizedKeyword)
+    const bMatch = b.nameCn.toLowerCase().includes(normalizedKeyword)
+      || b.name.toLowerCase().includes(normalizedKeyword)
+    if (aMatch && !bMatch) return -1
+    if (!aMatch && bMatch) return 1
+    return 0
   })
 
   return {
