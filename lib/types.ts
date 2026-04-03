@@ -70,3 +70,28 @@ export interface DestinationInfo {
   name: string
   address: string
 }
+
+// === 番剧搜索类型定义 ===
+
+/** 统一的番剧数据格式 */
+export interface AnimeItem {
+  id: number
+  name: string
+  nameCn: string
+  nameEn: string | null
+  summary: string
+  airDate: string
+  episodeCount: number
+  coverImage: string
+  ratingBangumi: number | null
+  ratingAniList: number | null
+  tags: string[]
+  status: 'airing' | 'finished' | 'upcoming'
+}
+
+/** 番剧搜索结果 */
+export interface AnimeSearchResult {
+  items: AnimeItem[]
+  total: number
+  hasMore: boolean
+}
