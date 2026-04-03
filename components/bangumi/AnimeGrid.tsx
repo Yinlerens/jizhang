@@ -34,7 +34,7 @@ function SkeletonList() {
     <div className="space-y-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex gap-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
-          <div className="w-16 h-22 flex-shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+          <div className="w-16 h-24 flex-shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
           <div className="flex-1 space-y-2">
             <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded w-1/3 animate-pulse" />
             <div className="h-3 bg-zinc-100 dark:bg-zinc-800 rounded w-1/2 animate-pulse" />

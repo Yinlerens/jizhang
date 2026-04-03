@@ -63,9 +63,12 @@ function GridCard({ anime }: { anime: AnimeItem }) {
         )}
         <div className="flex items-center justify-between">
           <RatingDisplay bangumi={anime.ratingBangumi} aniList={anime.ratingAniList} />
-          {anime.episodeCount > 0 && (
-            <span className="text-[10px] text-zinc-400">{anime.episodeCount}集</span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {anime.episodeCount > 0 && (
+              <span className="text-[10px] text-zinc-400">{anime.episodeCount}集</span>
+            )}
+            <StatusBadge status={anime.status} />
+          </div>
         </div>
       </div>
     </div>
@@ -75,7 +78,7 @@ function GridCard({ anime }: { anime: AnimeItem }) {
 function ListCard({ anime }: { anime: AnimeItem }) {
   return (
     <div className="flex gap-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 shadow-sm transition-all duration-200 hover:shadow-md">
-      <div className="w-16 h-22 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+      <div className="w-16 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
         {anime.coverImage ? (
           <img
             src={anime.coverImage}

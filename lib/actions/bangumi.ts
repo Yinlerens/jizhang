@@ -44,6 +44,7 @@ async function fetchBangumi(keyword: string, limit: number, offset: number) {
   const res = await fetch(`${BANGUMI_API}/v0/search/subjects?limit=${limit}&offset=${offset}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': 'AnimationFrame/1.0' },
+    cache: 'no-store',
     body: JSON.stringify({
       keyword,
       sort: 'match',
@@ -77,6 +78,7 @@ async function fetchAniList(keyword: string, perPage: number): Promise<AniListMe
   const res = await fetch(ANILIST_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    cache: 'no-store',
     body: JSON.stringify({ query, variables: { search: keyword, perPage } }),
   })
 
@@ -145,8 +147,9 @@ export async function searchBangumi(keyword: string, offset = 0, limit = 24): Pr
     throw new Error('搜索失败，请稍后重试')
   }
 
-  const items = bangumiData.data.map((subject) => {
+  const items = (bangumiData.data ?? []).map((subject) => {
     const aniListMatch = matchAniListData(subject.name, aniListData)
+      ?? (subject.name_cn ? matchAniListData(subject.name_cn, aniListData) : null)
     return toBangumiItem(subject, aniListMatch)
   })
 

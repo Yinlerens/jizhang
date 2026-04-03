@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { AnimeItem } from '@/lib/types'
 import { searchBangumi } from '@/lib/actions/bangumi'
@@ -19,9 +19,11 @@ export default function BangumiPage() {
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [currentKeyword, setCurrentKeyword] = useState('')
+  const searchIdRef = useRef(0)
 
   const handleSearch = useCallback(async (keyword: string) => {
     setCurrentKeyword(keyword)
+    const id = ++searchIdRef.current
 
     if (!keyword.trim()) {
       setResults([])
@@ -36,6 +38,7 @@ export default function BangumiPage() {
 
     try {
       const result = await searchBangumi(keyword, 0, PAGE_SIZE)
+      if (id !== searchIdRef.current) return
       setResults(result.items)
       setTotal(result.total)
       setHasMore(result.hasMore)
