@@ -94,11 +94,25 @@ function normalizeTitle(title: string): string {
 
 function matchAniListData(bangumiName: string, aniListResults: AniListMedia[]): AniListMedia | null {
   const normalized = normalizeTitle(bangumiName)
-  return aniListResults.find((m) => {
+  if (!normalized) return null
+
+  // Exact match first
+  const exact = aniListResults.find((m) => {
     const romaji = normalizeTitle(m.title.romaji || '')
     const native = normalizeTitle(m.title.native || '')
     const english = normalizeTitle(m.title.english || '')
     return romaji === normalized || native === normalized || english === normalized
+  })
+  if (exact) return exact
+
+  // Fuzzy match: either side contains the other
+  return aniListResults.find((m) => {
+    const romaji = normalizeTitle(m.title.romaji || '')
+    const native = normalizeTitle(m.title.native || '')
+    const english = normalizeTitle(m.title.english || '')
+    return [romaji, native, english].some((t) =>
+      t && (t.includes(normalized) || normalized.includes(t))
+    )
   }) ?? null
 }
 
