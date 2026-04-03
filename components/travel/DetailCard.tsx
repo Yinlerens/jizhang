@@ -3,6 +3,7 @@
 import { X, Navigation } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
 import { planRoute } from '@/lib/route'
+import { usePostHog } from 'posthog-js/react'
 import type { MapContainerRef } from './MapContainer'
 
 interface DetailCardProps {
@@ -14,11 +15,18 @@ export default function DetailCard({ mapRef }: DetailCardProps) {
   const selectedPOI = useTravelStore((s) => s.selectedPOI)
   const setSelectedPOI = useTravelStore((s) => s.setSelectedPOI)
   const setDestination = useTravelStore((s) => s.setDestination)
+  const posthog = usePostHog()
 
   if (!selectedPOI) return null
 
   /** 点击"去这里"：设置目的地并立即规划路线 */
   const handleGoHere = () => {
+    const transportMode = useTravelStore.getState().transportMode
+    posthog.capture('route_planned', {
+      destination_name: selectedPOI.name,
+      transport_mode: transportMode,
+    })
+
     setDestination({
       lng: selectedPOI.location.lng,
       lat: selectedPOI.location.lat,

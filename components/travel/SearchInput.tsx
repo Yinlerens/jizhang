@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
+import { usePostHog } from 'posthog-js/react'
 import type { MapContainerRef } from './MapContainer'
 import type { POIResult } from '@/lib/types'
 
@@ -16,6 +17,7 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
   const setSearchKeyword = useTravelStore((s) => s.setSearchKeyword)
   const setSearchResults = useTravelStore((s) => s.setSearchResults)
   const setIsSearching = useTravelStore((s) => s.setIsSearching)
+  const posthog = usePostHog()
 
   const doSearch = useCallback(
     (keyword: string) => {
@@ -58,6 +60,10 @@ export default function SearchInput({ mapRef }: SearchInputProps) {
             }
           })
           setSearchResults(pois)
+          posthog.capture('poi_searched', {
+            keyword: keyword.trim(),
+            result_count: pois.length,
+          })
         } else {
           setSearchResults([])
         }

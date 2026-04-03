@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react'
 import { useTravelStore } from '@/lib/stores/travel-store'
 import { formatDistance } from '@/lib/amap'
 import { loadAMap } from '@/lib/amap'
+import { usePostHog } from 'posthog-js/react'
 import type { MapContainerRef } from './MapContainer'
 import type { POIDetail } from '@/lib/types'
 
@@ -17,9 +18,16 @@ export default function SearchResults({ mapRef }: SearchResultsProps) {
   const isSearching = useTravelStore((s) => s.isSearching)
   const searchKeyword = useTravelStore((s) => s.searchKeyword)
   const selectedPOI = useTravelStore((s) => s.selectedPOI)
+  const posthog = usePostHog()
 
   /** 选择 POI：居中地图、设为目的地、展示详情卡片 */
   const handleSelect = async (poi: (typeof searchResults)[0]) => {
+    posthog.capture('poi_selected', {
+      poi_name: poi.name,
+      poi_type: poi.type,
+      distance: poi.distance,
+    })
+
     // 将地图中心移动到选中的 POI
     const map = mapRef.current?.getMap()
     if (map) {

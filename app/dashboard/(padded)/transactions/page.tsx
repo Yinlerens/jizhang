@@ -6,6 +6,7 @@ import { Transaction } from '@/lib/types'
 import { format } from 'date-fns'
 import { Search, Filter, Download } from 'lucide-react'
 import { exportToExcel, ExportColumn } from '@/lib/export'
+import { usePostHog } from 'posthog-js/react'
 
 // 账单导出列配置
 const transactionExportColumns: ExportColumn<Transaction>[] = [
@@ -36,6 +37,7 @@ export default function TransactionsPage() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const supabaseRef = useRef(createClient())
+    const posthog = usePostHog()
 
     useEffect(() => {
         const fetchTransactions = async () => {
@@ -56,10 +58,26 @@ export default function TransactionsPage() {
         t.category?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    // 搜索行为追踪：用户停止输入 800ms 后记录一次搜索事件
+    useEffect(() => {
+        if (!searchTerm.trim()) return
+        const timer = setTimeout(() => {
+            posthog.capture('transaction_searched', {
+                search_term: searchTerm,
+                result_count: filteredTransactions.length,
+            })
+        }, 800)
+        return () => clearTimeout(timer)
+    }, [searchTerm]) // eslint-disable-line react-hooks/exhaustive-deps
+
     const handleExport = () => {
         exportToExcel(filteredTransactions, transactionExportColumns, {
             filename: `账单记录_${format(new Date(), 'yyyyMMdd_HHmmss')}`,
             sheetName: '账单记录'
+        })
+        posthog.capture('transaction_exported', {
+            count: filteredTransactions.length,
+            has_search_filter: searchTerm.length > 0,
         })
     }
 

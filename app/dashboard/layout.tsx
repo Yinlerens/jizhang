@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
+import IdentifyUser from "@/components/providers/IdentifyUser";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -14,6 +15,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      {/* 统一用户识别：同步 PostHog + Sentry */}
+      <IdentifyUser userId={user.id} email={user.email ?? ''} />
+
       {/* PC Sidebar */}
       <div className="hidden md:flex">
         <Sidebar user={user} />

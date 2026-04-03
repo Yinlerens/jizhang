@@ -16,6 +16,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { usePostHog } from "posthog-js/react";
+import * as Sentry from "@sentry/nextjs";
 
 interface MenuGroup {
   label: string;
@@ -48,6 +50,7 @@ export default function Sidebar({ user }: { user: any }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const posthog = usePostHog();
 
   // Determine which groups should be open based on current path
   const getInitialOpenGroups = () => {
@@ -65,6 +68,9 @@ export default function Sidebar({ user }: { user: any }) {
   };
 
   const handleLogout = async () => {
+    // 登出时重置分析工具的用户身份，防止后续事件关联到已登出用户
+    posthog.reset();
+    Sentry.setUser(null);
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
