@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, Navigation, Settings } from 'lucide-react'
+import { Wallet, Navigation, Tv2, Settings } from 'lucide-react'
 
 const tabs = [
     { icon: Wallet, label: '记账', href: '/dashboard', matchPaths: ['/dashboard', '/dashboard/transactions', '/dashboard/stats'] },
     { icon: Navigation, label: '出行', href: '/dashboard/travel', matchPaths: ['/dashboard/travel'] },
+    { icon: Tv2, label: '番剧', href: '/dashboard/bangumi', matchPaths: ['/dashboard/bangumi'] },
     { icon: Settings, label: '设置', href: '/dashboard/settings', matchPaths: ['/dashboard/settings'] },
 ]
 

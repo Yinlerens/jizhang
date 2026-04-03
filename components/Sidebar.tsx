@@ -12,6 +12,8 @@ import {
   Navigation,
   MapPin,
   ChevronDown,
+  Tv2,
+  Search,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -40,6 +42,13 @@ const menuGroups: MenuGroup[] = [
     icon: Navigation,
     items: [
       { icon: MapPin, label: "出行助手", href: "/dashboard/travel" },
+    ],
+  },
+  {
+    label: "番剧",
+    icon: Tv2,
+    items: [
+      { icon: Search, label: "搜索", href: "/dashboard/bangumi" },
     ],
   },
 ];
