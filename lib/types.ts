@@ -95,3 +95,58 @@ export interface AnimeSearchResult {
   total: number
   hasMore: boolean
 }
+
+// === 番剧详情类型定义 ===
+
+/** 角色信息 */
+export interface CharacterInfo {
+  id: number
+  name: string
+  nameCn: string
+  image: string
+  role: 'main' | 'supporting' | 'background'
+  voiceActor?: {
+    id: number
+    name: string
+    image: string
+  }
+}
+
+/** 制作人员 */
+export interface StaffInfo {
+  id: number
+  name: string
+  image: string
+  role: string
+}
+
+/** 关联作品 */
+export interface RelatedAnime {
+  id: number
+  name: string
+  nameCn: string
+  coverImage: string
+  relation: string
+  source: 'bgm' | 'al'
+}
+
+/** 番剧详情 */
+export interface AnimeDetail {
+  id: number
+  name: string
+  nameCn: string
+  nameEn: string | null
+  summary: string
+  airDate: string
+  episodeCount: number
+  coverImage: string
+  bannerImage: string | null
+  ratingScore: number | null
+  ratingCount: number
+  tags: string[]
+  status: 'airing' | 'finished' | 'upcoming'
+  source: 'bgm' | 'al'
+  characters: CharacterInfo[]
+  staff: StaffInfo[]
+  related: RelatedAnime[]
+}

@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { Star } from 'lucide-react'
 import { AnimeItem } from '@/lib/types'
 
 interface AnimeCardProps {
   anime: AnimeItem
   viewMode: 'grid' | 'list'
+  source: 'bgm' | 'al'
 }
 
 function StatusBadge({ status }: { status: AnimeItem['status'] }) {
@@ -128,6 +130,10 @@ function ListCard({ anime }: { anime: AnimeItem }) {
   )
 }
 
-export default function AnimeCard({ anime, viewMode }: AnimeCardProps) {
-  return viewMode === 'grid' ? <GridCard anime={anime} /> : <ListCard anime={anime} />
+export default function AnimeCard({ anime, viewMode, source }: AnimeCardProps) {
+  return (
+    <Link href={`/dashboard/bangumi/${source}/${anime.id}`}>
+      {viewMode === 'grid' ? <GridCard anime={anime} /> : <ListCard anime={anime} />}
+    </Link>
+  )
 }

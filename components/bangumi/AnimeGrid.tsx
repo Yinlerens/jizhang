@@ -11,6 +11,7 @@ interface AnimeGridProps {
   hasMore: boolean
   onLoadMore: () => void
   isLoadingMore: boolean
+  source: 'bgm' | 'al'
 }
 
 function SkeletonGrid() {
@@ -54,6 +55,7 @@ export default function AnimeGrid({
   hasMore,
   onLoadMore,
   isLoadingMore,
+  source,
 }: AnimeGridProps) {
   if (isLoading) {
     return viewMode === 'grid' ? <SkeletonGrid /> : <SkeletonList />
@@ -80,13 +82,13 @@ export default function AnimeGrid({
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {items.map((anime) => (
-            <AnimeCard key={anime.id} anime={anime} viewMode="grid" />
+            <AnimeCard key={anime.id} anime={anime} viewMode="grid" source={source} />
           ))}
         </div>
       ) : (
         <div className="space-y-3">
           {items.map((anime) => (
-            <AnimeCard key={anime.id} anime={anime} viewMode="list" />
+            <AnimeCard key={anime.id} anime={anime} viewMode="list" source={source} />
           ))}
         </div>
       )}
