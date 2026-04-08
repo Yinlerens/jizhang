@@ -5,6 +5,19 @@ const nextConfig: NextConfig = {
   // 启用 React 编译器（React 19 新特性）
   reactCompiler: true,
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lain.bgm.tv',
+      },
+      {
+        protocol: 'https',
+        hostname: 's4.anilist.co',
+      },
+    ],
+  },
+
   async rewrites() {
     return [
       {
