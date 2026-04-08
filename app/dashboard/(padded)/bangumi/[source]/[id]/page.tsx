@@ -1,11 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getBangumiDetail, getAniListDetail } from '@/lib/actions/bangumi'
-import DetailHero from '@/components/bangumi/DetailHero'
-import CharacterList from '@/components/bangumi/CharacterList'
-import StaffList from '@/components/bangumi/StaffList'
-import RelatedList from '@/components/bangumi/RelatedList'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
+import BangumiDetailVariants from '@/components/bangumi/detail/BangumiDetailVariants'
 
 export default async function AnimeDetailPage({
   params,
@@ -29,19 +24,8 @@ export default async function AnimeDetailPage({
   }
 
   return (
-    <div className="space-y-8 pb-8">
-      <Link
-        href="/dashboard/bangumi"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50 transition"
-      >
-        <ArrowLeft size={16} />
-        返回搜索
-      </Link>
-
-      <DetailHero detail={detail} />
-      <CharacterList characters={detail.characters} />
-      <StaffList staff={detail.staff} />
-      <RelatedList related={detail.related} />
+    <div className="relative z-10 pb-12">
+      <BangumiDetailVariants detail={detail} />
     </div>
   )
 }
