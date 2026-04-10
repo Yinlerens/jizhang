@@ -141,7 +141,6 @@ export default function BangumiPage() {
         hasMore={hasMore}
         onLoadMore={handleLoadMore}
         isLoadingMore={isLoadingMore}
-        source={source === 'bangumi' ? 'bgm' : 'al'}
       />
     </div>
   )
