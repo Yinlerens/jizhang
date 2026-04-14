@@ -5,34 +5,21 @@ const nextConfig: NextConfig = {
   // 启用 React 编译器（React 19 新特性）
   reactCompiler: true,
 
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'lain.bgm.tv',
-      },
-      {
-        protocol: 'https',
-        hostname: 's4.anilist.co',
-      },
-    ],
-  },
-
   async rewrites() {
     return [
       {
-        source: '/ingest/static/:path*',
-        destination: 'https://us-assets.i.posthog.com/static/:path*',
+        source: "/ingest/static/:path*",
+        destination: "https://us-assets.i.posthog.com/static/:path*",
       },
       {
-        source: '/ingest/:path*',
-        destination: 'https://us.i.posthog.com/:path*',
+        source: "/ingest/:path*",
+        destination: "https://us.i.posthog.com/:path*",
       },
       {
-        source: '/ingest/decide',
-        destination: 'https://us.i.posthog.com/decide',
+        source: "/ingest/decide",
+        destination: "https://us.i.posthog.com/decide",
       },
-    ]
+    ];
   },
   skipTrailingSlashRedirect: true,
 };
