@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, Navigation, Tv2, Settings } from 'lucide-react'
+import { Navigation, Tv2, Settings, Table2 } from 'lucide-react'
 
 const tabs = [
-    { icon: Wallet, label: '记账', href: '/dashboard', matchPaths: ['/dashboard', '/dashboard/transactions', '/dashboard/stats'] },
+    { icon: Table2, label: '图表', href: '/dashboard/charts', matchPaths: ['/dashboard/charts'] },
     { icon: Navigation, label: '出行', href: '/dashboard/travel', matchPaths: ['/dashboard/travel'] },
     { icon: Tv2, label: '番剧', href: '/dashboard/bangumi', matchPaths: ['/dashboard/bangumi'] },
     { icon: Settings, label: '设置', href: '/dashboard/settings', matchPaths: ['/dashboard/settings'] },
@@ -19,7 +19,7 @@ export default function MobileNav() {
             {tabs.map((tab) => {
                 const isActive = tab.matchPaths.some(
                     (p) => pathname === p || (p !== '/dashboard' && pathname.startsWith(p + '/'))
-                ) || (tab.href === '/dashboard' && pathname === '/dashboard')
+                )
                 return (
                     <Link
                         key={tab.href}

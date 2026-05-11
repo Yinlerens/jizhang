@@ -3,23 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   ReceiptText,
-  BarChart3,
+  Table2,
   Settings,
   LogOut,
-  Wallet,
-  Navigation,
-  MapPin,
   ChevronDown,
-  Tv2,
-  Search,
+  Grid3X3,
+  Network,
+  CircleDotDashed,
+  ScatterChart,
+  Activity,
+  CandlestickChart,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import * as Sentry from "@sentry/nextjs";
+import type { User } from "@supabase/supabase-js";
 
 interface MenuGroup {
   label: string;
@@ -29,33 +30,22 @@ interface MenuGroup {
 
 const menuGroups: MenuGroup[] = [
   {
-    label: "记账",
-    icon: Wallet,
+    label: "图表菜单",
+    icon: Grid3X3,
     items: [
-      { icon: LayoutDashboard, label: "概览", href: "/dashboard" },
-      { icon: ReceiptText, label: "账单记录", href: "/dashboard/transactions" },
-      { icon: BarChart3, label: "统计分析", href: "/dashboard/stats" },
-    ],
-  },
-  {
-    label: "出行",
-    icon: Navigation,
-    items: [
-      { icon: MapPin, label: "出行助手", href: "/dashboard/travel" },
-    ],
-  },
-  {
-    label: "番剧",
-    icon: Tv2,
-    items: [
-      { icon: Search, label: "搜索", href: "/dashboard/bangumi" },
+      { icon: Table2, label: "元素周期表", href: "/dashboard/charts" },
+      { icon: Network, label: "和弦关系", href: "/dashboard/charts/chord" },
+      { icon: CircleDotDashed, label: "蜂群分布", href: "/dashboard/charts/swarm" },
+      { icon: ScatterChart, label: "抖动散点", href: "/dashboard/charts/jitter" },
+      { icon: Activity, label: "断轴柱图", href: "/dashboard/charts/axis-break" },
+      { icon: CandlestickChart, label: "金融分时", href: "/dashboard/charts/market" },
     ],
   },
 ];
 
 const settingsItem = { icon: Settings, label: "设置", href: "/dashboard/settings" };
 
-export default function Sidebar({ user }: { user: any }) {
+export default function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -64,7 +54,9 @@ export default function Sidebar({ user }: { user: any }) {
   // Determine which groups should be open based on current path
   const getInitialOpenGroups = () => {
     return menuGroups
-      .filter((group) => group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")))
+      .filter((group) =>
+        group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
+      )
       .map((group) => group.label);
   };
 
@@ -72,7 +64,7 @@ export default function Sidebar({ user }: { user: any }) {
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) =>
-      prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label]
+      prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label],
     );
   };
 
@@ -102,18 +94,17 @@ export default function Sidebar({ user }: { user: any }) {
         {menuGroups.map((group) => {
           const isOpen = openGroups.includes(group.label);
           const hasActiveItem = group.items.some(
-            (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+            (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
           );
 
           return (
             <div key={group.label}>
               <button
                 onClick={() => toggleGroup(group.label)}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition duration-200 ${
-                  hasActiveItem && !isOpen
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition duration-200 ${hasActiveItem && !isOpen
                     ? "text-zinc-900 dark:text-zinc-50"
                     : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                }`}
+                  }`}
               >
                 <group.icon size={20} />
                 <span className="font-medium flex-1 text-left">{group.label}</span>
@@ -129,11 +120,10 @@ export default function Sidebar({ user }: { user: any }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition duration-200 ${
-                        isActive(item.href)
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition duration-200 ${isActive(item.href)
                           ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                           : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      }`}
+                        }`}
                     >
                       <item.icon size={18} />
                       <span className="font-medium text-sm">{item.label}</span>
@@ -146,7 +136,7 @@ export default function Sidebar({ user }: { user: any }) {
         })}
 
         {/* Settings - standalone */}
-        <Link
+        {/* <Link
           href={settingsItem.href}
           className={`flex items-center gap-3 px-4 py-3 rounded-xl transition duration-200 ${
             isActive(settingsItem.href)
@@ -156,7 +146,7 @@ export default function Sidebar({ user }: { user: any }) {
         >
           <settingsItem.icon size={20} />
           <span className="font-medium">{settingsItem.label}</span>
-        </Link>
+        </Link> */}
       </nav>
 
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4">

@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Toaster } from "@/components/ui/sonner"
-import { PostHogProvider } from "@/components/providers/PostHogProvider"
+import { Toaster } from "@/components/ui/sonner";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SERVICE",
-  description: "支持双端的智能记账与财务分析平台",
+  description: "不知道写啥",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
           {children}
           <Analytics />
           <SpeedInsights />
-          <Toaster/>
+          <Toaster />
         </PostHogProvider>
       </body>
     </html>
