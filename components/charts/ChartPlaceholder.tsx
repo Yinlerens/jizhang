@@ -12,6 +12,7 @@ export default function ChartPlaceholder({ title, type, description }: ChartPlac
         <p className="text-zinc-500 dark:text-zinc-400">{description}</p>
       </div>
 
+      {/* 二级菜单先落完整路由，真实图表可以逐个替换这个占位组件。 */}
       <div className="rounded-lg border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
           <div className="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">

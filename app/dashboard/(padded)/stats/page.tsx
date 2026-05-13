@@ -1,20 +1,19 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { EChartsOption } from 'echarts'
 import { createClient } from '@/lib/supabase/client'
+import ResponsiveEChart from '@/components/charts/ResponsiveEChart'
 import { Transaction } from '@/lib/types'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay } from 'date-fns'
 import { CHART_COLORS, getChartColor } from '@/lib/colors'
 
 export default function StatsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
-    const [mounted, setMounted] = useState(false)
     const supabaseRef = useRef(createClient())
 
     useEffect(() => {
-        setMounted(true)
         const fetchTransactions = async () => {
             const { data } = await supabaseRef.current
                 .from('transactions')
@@ -28,31 +27,95 @@ export default function StatsPage() {
         fetchTransactions()
     }, [])
 
-    // Calculate stats for current month
-    const now = new Date()
-    const monthStart = startOfMonth(now)
-    const monthEnd = endOfMonth(now)
-    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
+    const dailyData = useMemo(() => {
+        const now = new Date()
+        const monthStart = startOfMonth(now)
+        const monthEnd = endOfMonth(now)
+        const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-    const dailyData = daysInMonth.map(day => {
-        const amount = transactions
-            .filter(t => isSameDay(new Date(t.occurred_at), day))
-            .reduce((acc, curr) => acc + Number(curr.amount), 0)
-        return {
-            date: format(day, 'MM-dd'),
-            amount
-        }
-    })
+        return daysInMonth.map(day => {
+            const amount = transactions
+                .filter(t => isSameDay(new Date(t.occurred_at), day))
+                .reduce((acc, curr) => acc + Number(curr.amount), 0)
+            return {
+                date: format(day, 'MM-dd'),
+                amount
+            }
+        })
+    }, [transactions])
 
-    const categoryMap = new Map<string, number>()
-    transactions.forEach(t => {
-        const cat = t.category || '未分类'
-        categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(t.amount))
-    })
-    const categoryData = Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
+    const categoryData = useMemo(() => {
+        const categoryMap = new Map<string, number>()
+        transactions.forEach(t => {
+            const cat = t.category || '未分类'
+            categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(t.amount))
+        })
+
+        return Array.from(categoryMap.entries())
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+    }, [transactions])
 
     const primaryColor = CHART_COLORS[4] // Violet for bar chart
+    const maxCategoryValue = categoryData[0]?.value ?? 0
+    const dailyChartOption = useMemo<EChartsOption>(() => ({
+        color: [primaryColor],
+        grid: {
+            left: 10,
+            right: 12,
+            top: 18,
+            bottom: 8,
+            containLabel: true,
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+                shadowStyle: {
+                    color: 'rgba(139, 92, 246, 0.1)',
+                },
+            },
+            valueFormatter: (value) => `¥${Number(value).toLocaleString()}`,
+        },
+        xAxis: {
+            type: 'category',
+            data: dailyData.map((item) => item.date),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+                color: '#71717a',
+                fontSize: 10,
+            },
+        },
+        yAxis: {
+            type: 'value',
+            axisLine: { show: false },
+            axisTick: { show: false },
+            splitLine: {
+                lineStyle: {
+                    color: '#e5e7eb',
+                    type: 'dashed',
+                },
+            },
+            axisLabel: {
+                color: '#71717a',
+                fontSize: 10,
+                formatter: '¥{value}',
+            },
+        },
+        series: [
+            {
+                name: '支出',
+                type: 'bar',
+                data: dailyData.map((item) => item.amount),
+                barMaxWidth: 18,
+                itemStyle: {
+                    color: primaryColor,
+                    borderRadius: [4, 4, 0, 0],
+                },
+            },
+        ],
+    }), [dailyData, primaryColor])
 
     return (
         <div className="space-y-8">
@@ -65,30 +128,13 @@ export default function StatsPage() {
                 {/* Daily Spending Bar Chart */}
                 <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                     <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6">本月每日支出</h3>
-                    <div style={{ width: '100%', height: 350 }}>
-                        {mounted ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={dailyData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-                                        contentStyle={{
-                                            borderRadius: '12px',
-                                            border: 'none',
-                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.95)'
-                                        }}
-                                        formatter={(value) => [`¥${Number(value).toLocaleString()}`, '支出']}
-                                    />
-                                    <Bar dataKey="amount" fill={primaryColor} radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
+                    <div className="h-[350px]">
+                        {loading ? (
                             <div className="h-full flex items-center justify-center text-zinc-400">
                                 加载中...
                             </div>
+                        ) : (
+                            <ResponsiveEChart option={dailyChartOption} height={350} />
                         )}
                     </div>
                 </div>
@@ -111,12 +157,12 @@ export default function StatsPage() {
                                 </div>
                                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
                                     <div
-                                        className="h-full rounded-full transition-all duration-500"
-                                        style={{
-                                            width: `${(item.value / categoryData[0].value) * 100}%`,
-                                            backgroundColor: getChartColor(index)
-                                        }}
-                                    />
+                                             className="h-full rounded-full transition-all duration-500"
+                                         style={{
+                                             width: `${maxCategoryValue > 0 ? (item.value / maxCategoryValue) * 100 : 0}%`,
+                                             backgroundColor: getChartColor(index)
+                                         }}
+                                     />
                                 </div>
                             </div>
                         ))}

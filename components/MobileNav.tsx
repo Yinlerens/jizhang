@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Navigation, Tv2, Settings, Table2 } from 'lucide-react'
 
+// 移动端同样隐藏记账入口，保留图表和其他模块的一层切换。
 const tabs = [
     { icon: Table2, label: '图表', href: '/dashboard/charts', matchPaths: ['/dashboard/charts'] },
     { icon: Navigation, label: '出行', href: '/dashboard/travel', matchPaths: ['/dashboard/travel'] },

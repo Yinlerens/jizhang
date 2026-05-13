@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
   CustomSeriesRenderItem,
   CustomSeriesRenderItemReturn,
@@ -11,6 +12,7 @@ import type {
 import {
   categoryColors,
   categoryLabels,
+  getElementDetailPath,
   periodicElements,
   periodicRows,
   type ElementCategory,
@@ -25,6 +27,7 @@ interface PeriodicTableChartProps {
 const xAxisData = Array.from({ length: 18 }, (_, index) => String(index + 1));
 const yAxisData = Object.values(periodicRows);
 
+// series.data 的前两列必须和 matrix 维度一致，后续列只用于 tooltip 和自定义渲染。
 const chartData = periodicElements.map((element) => [
   String(element.group),
   periodicRows[element.row],
@@ -35,6 +38,7 @@ const chartData = periodicElements.map((element) => [
   element.mass,
 ]);
 
+// tooltip formatter 收到的 params 在单系列时是对象，多系列时可能是数组。
 const getTooltipElement = (params: TooltipComponentFormatterCallbackParams) => {
   const item = Array.isArray(params) ? params[0] : params;
 
@@ -45,9 +49,24 @@ const getTooltipElement = (params: TooltipComponentFormatterCallbackParams) => {
   return periodicElements[item.dataIndex] ?? null;
 };
 
+const getEventElement = (params: unknown) => {
+  if (!params || typeof params !== "object") {
+    return null;
+  }
+
+  const dataIndex = (params as { dataIndex?: unknown }).dataIndex;
+
+  if (typeof dataIndex !== "number") {
+    return null;
+  }
+
+  return periodicElements[dataIndex] ?? null;
+};
+
 const createRenderItem = (focusCategory: FocusCategory): CustomSeriesRenderItem => {
   return (params, api) => {
     const element = periodicElements[params.dataIndex];
+    // matrix.api.layout 能拿到单元格真实尺寸，比手写格子宽高更能适配响应式布局。
     const layout = api.layout?.([api.value(0), api.value(1)], { clamp: true });
     const rect = layout?.rect;
 
@@ -75,6 +94,7 @@ const createRenderItem = (focusCategory: FocusCategory): CustomSeriesRenderItem 
     const numberSize = width < 50 ? 8 : 9;
     const showFineText = width >= 43 && height >= 48;
 
+    // custom series 每个元素返回一个 group：底色卡片、原子序数、符号、名称和质量。
     return {
       type: "group",
       children: [
@@ -169,7 +189,7 @@ const createRenderItem = (focusCategory: FocusCategory): CustomSeriesRenderItem 
                   y: y + height - 7,
                   text: element.mass,
                   fill: palette.text,
-                  fontSize: 7,
+                  fontSize: 6,
                   textAlign: "center",
                   width: width - 8,
                   overflow: "truncate",
@@ -288,6 +308,7 @@ const createOption = (focusCategory: FocusCategory): EChartsOption => ({
     {
       type: "custom",
       coordinateSystem: "matrix",
+      // 维度命名让 encode 和 tooltip 保持可读，后续扩展字段也不需要猜索引。
       dimensions: ["group", "period", "number", "symbol", "name", "category", "mass"],
       encode: {
         x: 0,
@@ -303,12 +324,15 @@ const createOption = (focusCategory: FocusCategory): EChartsOption => ({
 });
 
 export default function PeriodicTableChart({ focusCategory }: PeriodicTableChartProps) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<EChartsType | null>(null);
   const latestOptionRef = useRef<EChartsOption | null>(null);
+  const prefetchedPathsRef = useRef<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const option = useMemo(() => createOption(focusCategory), [focusCategory]);
 
+  // 动态导入 ECharts 可能慢于 React prop 更新，用 ref 保存最新 option 防止首次渲染拿旧值。
   latestOptionRef.current = option;
 
   useEffect(() => {
@@ -316,6 +340,7 @@ export default function PeriodicTableChart({ focusCategory }: PeriodicTableChart
     let observer: ResizeObserver | null = null;
 
     const mountChart = async () => {
+      // ECharts 只在浏览器里初始化，避免把大图表库引入 Server Component 渲染路径。
       const echarts = await import("echarts");
 
       if (disposed || !containerRef.current) {
@@ -337,6 +362,27 @@ export default function PeriodicTableChart({ focusCategory }: PeriodicTableChart
           setReady(true);
         }
       });
+      chartRef.current.on("click", (params) => {
+        const element = getEventElement(params);
+
+        if (element) {
+          router.push(getElementDetailPath(element));
+        }
+      });
+      chartRef.current.on("mouseover", (params) => {
+        const element = getEventElement(params);
+
+        if (!element) {
+          return;
+        }
+
+        const path = getElementDetailPath(element);
+
+        if (!prefetchedPathsRef.current.has(path)) {
+          prefetchedPathsRef.current.add(path);
+          router.prefetch(path);
+        }
+      });
 
       observer = new ResizeObserver(() => {
         chartRef.current?.resize();
@@ -353,7 +399,7 @@ export default function PeriodicTableChart({ focusCategory }: PeriodicTableChart
       chartRef.current?.dispose();
       chartRef.current = null;
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     chartRef.current?.setOption(option, true);
@@ -369,7 +415,7 @@ export default function PeriodicTableChart({ focusCategory }: PeriodicTableChart
       <div className="overflow-x-auto">
         <div
           ref={containerRef}
-          className="h-160 min-w-260 sm:h-170"
+          className="h-160 min-w-260 cursor-pointer sm:h-170"
           aria-label="元素周期表矩阵图"
         />
       </div>

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   ReceiptText,
   Table2,
-  Settings,
   LogOut,
   ChevronDown,
   Grid3X3,
@@ -32,6 +31,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "图表菜单",
     icon: Grid3X3,
+    // 记账菜单按需求隐藏；图表菜单提升为一级，具体图表作为二级入口。
     items: [
       { icon: Table2, label: "元素周期表", href: "/dashboard/charts" },
       { icon: Network, label: "和弦关系", href: "/dashboard/charts/chord" },
@@ -43,15 +43,13 @@ const menuGroups: MenuGroup[] = [
   },
 ];
 
-const settingsItem = { icon: Settings, label: "设置", href: "/dashboard/settings" };
-
 export default function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const posthog = usePostHog();
 
-  // Determine which groups should be open based on current path
+  // 根据当前路径默认展开命中的一级菜单，刷新页面后仍能看到所在二级项。
   const getInitialOpenGroups = () => {
     return menuGroups
       .filter((group) =>
@@ -135,18 +133,7 @@ export default function Sidebar({ user }: { user: User }) {
           );
         })}
 
-        {/* Settings - standalone */}
-        {/* <Link
-          href={settingsItem.href}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition duration-200 ${
-            isActive(settingsItem.href)
-              ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <settingsItem.icon size={20} />
-          <span className="font-medium">{settingsItem.label}</span>
-        </Link> */}
+        {/* 设置入口暂时隐藏；恢复时可作为独立一级链接放回这里。 */}
       </nav>
 
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
