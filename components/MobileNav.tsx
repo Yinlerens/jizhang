@@ -2,13 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Navigation, Tv2, Settings, Table2 } from 'lucide-react'
+import { BotMessageSquare, Settings, Settings2, Table2 } from 'lucide-react'
 
-// 移动端同样隐藏记账入口，保留图表和其他模块的一层切换。
 const tabs = [
     { icon: Table2, label: '图表', href: '/dashboard/charts', matchPaths: ['/dashboard/charts'] },
-    { icon: Navigation, label: '出行', href: '/dashboard/travel', matchPaths: ['/dashboard/travel'] },
-    { icon: Tv2, label: '番剧', href: '/dashboard/bangumi', matchPaths: ['/dashboard/bangumi'] },
+    { icon: BotMessageSquare, label: 'AI', href: '/dashboard/ai', matchPaths: ['/dashboard/ai'], exact: true },
+    { icon: Settings2, label: '配置', href: '/dashboard/ai/settings', matchPaths: ['/dashboard/ai/settings'] },
     { icon: Settings, label: '设置', href: '/dashboard/settings', matchPaths: ['/dashboard/settings'] },
 ]
 
@@ -18,9 +17,11 @@ export default function MobileNav() {
     return (
         <nav className="flex items-center justify-around bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-2 py-3">
             {tabs.map((tab) => {
-                const isActive = tab.matchPaths.some(
-                    (p) => pathname === p || (p !== '/dashboard' && pathname.startsWith(p + '/'))
-                )
+                const isActive = tab.exact
+                    ? pathname === tab.href
+                    : tab.matchPaths.some(
+                        (p) => pathname === p || (p !== '/dashboard' && pathname.startsWith(p + '/'))
+                    )
                 return (
                     <Link
                         key={tab.href}

@@ -13,6 +13,8 @@ import {
   ScatterChart,
   Activity,
   CandlestickChart,
+  BotMessageSquare,
+  Settings2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -28,6 +30,14 @@ interface MenuGroup {
 }
 
 const menuGroups: MenuGroup[] = [
+  {
+    label: "AI 对话",
+    icon: BotMessageSquare,
+    items: [
+      { icon: BotMessageSquare, label: "对话页", href: "/dashboard/ai" },
+      { icon: Settings2, label: "配置页", href: "/dashboard/ai/settings" },
+    ],
+  },
   {
     label: "图表菜单",
     icon: Grid3X3,
