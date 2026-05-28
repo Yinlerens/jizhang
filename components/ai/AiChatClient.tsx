@@ -87,6 +87,21 @@ export default function AiChatClient() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isSending]);
 
+  useEffect(() => {
+    if (!currentConversation || cloudConfigs.length === 0) {
+      return;
+    }
+
+    const nextConfig = findConversationProviderConfig(currentConversation, cloudConfigs);
+
+    if (!nextConfig || nextConfig.id === config.id) {
+      return;
+    }
+
+    setConfig(nextConfig);
+    writeAiConfig(nextConfig);
+  }, [cloudConfigs, config.id, currentConversation]);
+
   const hasConfig = config.apiKey.trim().length > 0 || Boolean(config.hasCloudApiKey);
   const activeModel = config.model || "";
   const canSend = Boolean(hasConfig && activeModel && draft.trim().length > 0 && !isSending);
@@ -178,7 +193,12 @@ export default function AiChatClient() {
       const data = await loadCloudAiConfig(config.id);
       const configs = data.configs ?? [];
       const nextConfig =
-        configs.find((item) => item.id === config.id) ?? data.config ?? configs[0];
+        (currentConversation
+          ? findConversationProviderConfig(currentConversation, configs)
+          : undefined) ??
+        configs.find((item) => item.id === config.id) ??
+        data.config ??
+        configs[0];
 
       setCloudConfigs(configs);
 
@@ -195,7 +215,7 @@ export default function AiChatClient() {
     }
   };
 
-  const selectConfiguredModel = (id: string) => {
+  const selectConfiguredModel = async (id: string) => {
     const nextConfig = cloudConfigs.find((item) => item.id === id);
 
     if (!nextConfig) {
@@ -204,6 +224,34 @@ export default function AiChatClient() {
 
     setConfig(nextConfig);
     writeAiConfig(nextConfig);
+
+    if (currentConversation) {
+      const optimisticConversation = withConversationConfig(currentConversation, nextConfig);
+
+      setCurrentConversation(optimisticConversation);
+      setConversations((items) => upsertConversation(items, optimisticConversation));
+
+      try {
+        const data = await updateAiConversation(currentConversation.id, {
+          providerConfigId: nextConfig.id ?? null,
+          model: nextConfig.model,
+          systemPrompt,
+        });
+        const conversation = data.conversation;
+
+        if (conversation) {
+          setCurrentConversation(conversation);
+          setConversations((items) => upsertConversation(items, conversation));
+        }
+
+        if (data.conversations) {
+          setConversations(data.conversations.sort(compareConversationsByActivity));
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "对话模型保存失败");
+      }
+    }
+
     toast.success("已切换模型配置");
   };
 
@@ -459,7 +507,7 @@ export default function AiChatClient() {
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={selectedConfigValue}
-                onChange={(event) => selectConfiguredModel(event.target.value)}
+                onChange={(event) => void selectConfiguredModel(event.target.value)}
                 className="h-10 w-full rounded-md border border-[#22263a] bg-[#f8fcff] px-3 font-mono text-xs font-black text-[#22263a] shadow-[3px_3px_0_#7dd3fc] outline-none dark:border-cyan-300/30 dark:bg-[#151a2c] dark:text-cyan-50 dark:shadow-none sm:w-auto sm:min-w-64"
               >
                 {!selectedConfigValue && (
@@ -706,6 +754,37 @@ function parseChatStreamEvent(line: string): AiChatStreamEvent | null {
   }
 
   return null;
+}
+
+function findConversationProviderConfig(
+  conversation: AiChatConversation,
+  configs: AiProviderConfig[],
+) {
+  if (conversation.providerConfigId) {
+    const byId = configs.find((item) => item.id === conversation.providerConfigId);
+
+    if (byId) {
+      return byId;
+    }
+  }
+
+  if (conversation.model) {
+    return configs.find((item) => item.model === conversation.model);
+  }
+
+  return undefined;
+}
+
+function withConversationConfig(
+  conversation: AiChatConversation,
+  config: AiProviderConfig,
+): AiChatConversation {
+  return {
+    ...conversation,
+    providerConfigId: config.id ?? null,
+    model: config.model,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function ConversationItem({
