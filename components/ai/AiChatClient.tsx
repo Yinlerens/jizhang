@@ -18,6 +18,7 @@ import {
   Sparkles,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -57,6 +58,8 @@ const DEEPSEEK_MODE_OPTIONS: Array<{
 
 const DEEPSEEK_MODE_SAVE_DELAY_MS = 350;
 
+type MobileAiPanelView = "history" | "settings";
+
 export default function AiChatClient() {
   const [config, setConfig] = useState<AiProviderConfig>(defaultAiConfig);
   const [cloudConfigs, setCloudConfigs] = useState<AiProviderConfig[]>([]);
@@ -66,6 +69,8 @@ export default function AiChatClient() {
   const [draft, setDraft] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [deepSeekMode, setDeepSeekMode] = useState<AiDeepSeekMode>("default");
+  const [mobilePanelView, setMobilePanelView] = useState<MobileAiPanelView>("history");
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [conversationPendingDelete, setConversationPendingDelete] =
     useState<AiChatConversation | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -140,6 +145,11 @@ export default function AiChatClient() {
   const isDeepSeekSelected = isDeepSeekModelName(activeModel);
   const canSend = Boolean(hasConfig && activeModel && draft.trim().length > 0 && !isSending);
   const selectedConfigValue = config.id || "";
+
+  const openMobilePanel = (view: MobileAiPanelView) => {
+    setMobilePanelView(view);
+    setIsMobilePanelOpen(true);
+  };
 
   const visibleMessages = useMemo<AiChatMessage[]>(() => {
     if (isLoadingMessages) {
@@ -222,6 +232,18 @@ export default function AiChatClient() {
       setIsLoadingMessages(false);
     }
   }
+
+  const selectConversation = async (conversation: AiChatConversation, shouldClosePanel = false) => {
+    if (isSending) {
+      return;
+    }
+
+    if (shouldClosePanel) {
+      setIsMobilePanelOpen(false);
+    }
+
+    await loadConversationMessages(conversation);
+  };
 
   const refreshConfiguredModels = async () => {
     setIsLoadingConfigs(true);
@@ -435,6 +457,7 @@ export default function AiChatClient() {
         setMessages([]);
       }
 
+      setIsMobilePanelOpen(false);
       toast.success("新对话已创建");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "新建对话失败");
@@ -469,6 +492,7 @@ export default function AiChatClient() {
 
       toast.success("对话已删除");
       setConversationPendingDelete(null);
+      setIsMobilePanelOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除对话失败");
     } finally {
@@ -612,12 +636,48 @@ export default function AiChatClient() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden rounded-md border-2 border-[#26223a] bg-[#fff9ec] text-[#26223a] shadow-[8px_8px_0_#ff7aa8] dark:border-cyan-300/30 dark:bg-[#10131f] dark:text-cyan-50 dark:shadow-[8px_8px_0_rgba(103,232,249,0.14)]">
+    <div className="relative h-[calc(100dvh-7rem)] min-h-[420px] overflow-hidden rounded-2xl border-2 border-[#26223a] bg-[#fff9ec] text-[#26223a] shadow-[4px_4px_0_#ff7aa8] dark:border-cyan-300/30 dark:bg-[#10131f] dark:text-cyan-50 dark:shadow-[4px_4px_0_rgba(103,232,249,0.14)] md:h-auto md:min-h-[calc(100vh-4rem)] md:rounded-md md:shadow-[8px_8px_0_#ff7aa8] md:dark:shadow-[8px_8px_0_rgba(103,232,249,0.14)]">
       <AnimeBackdrop />
 
-      <div className="relative z-10 grid h-full min-h-[calc(100vh-4rem)] gap-4 p-4 md:p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="flex min-h-[680px] min-w-0 flex-col rounded-md border-2 border-[#26223a] bg-white/90 shadow-[6px_6px_0_#7dd3fc] backdrop-blur dark:border-cyan-300/25 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(244,114,182,0.16)]">
-          <header className="flex flex-col gap-3 border-b-2 border-[#26223a] bg-[#fff1f6]/75 p-4 dark:border-cyan-300/15 dark:bg-white/5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="relative z-10 grid h-full gap-4 md:min-h-[calc(100vh-4rem)] md:p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="flex min-h-0 min-w-0 flex-col bg-white/92 backdrop-blur dark:bg-white/5 md:min-h-[680px] md:rounded-md md:border-2 md:border-[#26223a] md:shadow-[6px_6px_0_#7dd3fc] md:dark:border-cyan-300/25 md:dark:shadow-[6px_6px_0_rgba(244,114,182,0.16)]">
+          <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b-2 border-[#26223a] bg-[#fff9ec]/95 px-2.5 backdrop-blur-xl dark:border-cyan-300/15 dark:bg-[#10131f]/95 md:hidden">
+            <button
+              type="button"
+              onClick={() => openMobilePanel("history")}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#22263a] bg-white text-[#22263a] shadow-[2px_2px_0_#7dd3fc] active:translate-y-px dark:border-cyan-300/25 dark:bg-white/10 dark:text-cyan-50 dark:shadow-none"
+              aria-label="打开对话历史"
+            >
+              <History size={18} />
+            </button>
+            <div className="min-w-0 flex-1 text-center">
+              <h1 className="truncate text-[15px] font-black leading-5 text-[#22263a] dark:text-cyan-50">
+                {currentConversation?.title || "星环对话"}
+              </h1>
+              <p className="truncate font-mono text-[10px] font-bold leading-4 text-[#6c5a68] dark:text-cyan-50/60">
+                {activeModel || "未选择模型"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={createConversation}
+              disabled={isCreatingConversation}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#22263a] bg-[#ffcf56] text-[#22263a] shadow-[2px_2px_0_#22263a] active:translate-y-px disabled:opacity-60 dark:border-cyan-300/25 dark:bg-cyan-300 dark:shadow-none"
+              aria-label="新建对话"
+            >
+              {isCreatingConversation ? <Loader2 size={17} className="animate-spin" /> : <Plus size={18} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => openMobilePanel("settings")}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#22263a] bg-[#ff7aa8] text-white shadow-[2px_2px_0_#22263a] active:translate-y-px dark:border-cyan-300/25 dark:bg-fuchsia-500 dark:shadow-none"
+              aria-label="打开对话设置"
+            >
+              <Settings2 size={18} />
+            </button>
+          </header>
+
+          <header className="hidden flex-col gap-3 border-b-2 border-[#26223a] bg-[#fff1f6]/75 p-4 dark:border-cyan-300/15 dark:bg-white/5 md:flex lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="inline-flex h-8 items-center gap-2 rounded-md border-2 border-[#26223a] bg-[#ffcf56] px-3 text-xs font-black uppercase text-[#26223a] shadow-[3px_3px_0_#ff7aa8]">
                 <Sparkles size={14} />
@@ -668,13 +728,13 @@ export default function AiChatClient() {
           </header>
 
           {!hasConfig && (
-            <div className="m-4 rounded-md border-2 border-[#26223a] bg-[#fff4c8] p-4 text-sm font-black text-[#5d4a1f] shadow-[4px_4px_0_#26223a] dark:border-cyan-300/20 dark:bg-yellow-300/10 dark:text-yellow-100 dark:shadow-none">
+            <div className="m-3 rounded-xl border-2 border-[#26223a] bg-[#fff4c8] p-3 text-sm font-black text-[#5d4a1f] shadow-[3px_3px_0_#26223a] dark:border-cyan-300/20 dark:bg-yellow-300/10 dark:text-yellow-100 dark:shadow-none md:m-4 md:rounded-md md:p-4 md:shadow-[4px_4px_0_#26223a]">
               需要先配置 API Key
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="mx-auto flex max-w-4xl flex-col gap-4">
+          <div className="flex-1 overflow-y-auto px-3 py-4 md:p-4">
+            <div className="mx-auto flex max-w-4xl flex-col gap-3 md:gap-4">
               {visibleMessages.map((message) => (
                 <ChatBubble key={message.id} message={message} />
               ))}
@@ -683,22 +743,36 @@ export default function AiChatClient() {
             </div>
           </div>
 
-          <form onSubmit={sendMessage} className="border-t-2 border-[#26223a] bg-[#fff9ec]/70 p-4 dark:border-cyan-300/15 dark:bg-white/5">
+          <form
+            onSubmit={sendMessage}
+            className="shrink-0 border-t-2 border-[#26223a] bg-[#fff9ec]/92 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-xl dark:border-cyan-300/15 dark:bg-[#10131f]/92 md:bg-[#fff9ec]/70 md:p-4 md:backdrop-blur-none md:dark:bg-white/5"
+          >
             <div className="mx-auto max-w-4xl">
-              <div className="overflow-hidden rounded-md border-2 border-[#26223a] bg-[#f8fcff] shadow-[5px_5px_0_#7dd3fc] dark:border-cyan-300/25 dark:bg-[#151a2c] dark:shadow-[5px_5px_0_rgba(34,211,238,0.13)]">
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  className="min-h-28 w-full resize-none bg-transparent px-4 py-3 text-sm font-semibold leading-6 text-[#22263a] outline-none placeholder:text-[#8b7280] dark:text-cyan-50 dark:placeholder:text-cyan-50/40"
-                  placeholder="输入消息"
-                />
-                <div className="flex flex-col gap-3 border-t-2 border-[#26223a]/15 bg-white/60 p-3 dark:border-cyan-300/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="overflow-hidden rounded-[24px] border-2 border-[#26223a] bg-[#f8fcff] shadow-[3px_3px_0_#7dd3fc] dark:border-cyan-300/25 dark:bg-[#151a2c] dark:shadow-[3px_3px_0_rgba(34,211,238,0.13)] md:rounded-md md:shadow-[5px_5px_0_#7dd3fc] md:dark:shadow-[5px_5px_0_rgba(34,211,238,0.13)]">
+                <div className="flex items-end gap-2 p-2 md:block md:p-0">
+                  <textarea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        event.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2 text-sm font-semibold leading-6 text-[#22263a] outline-none placeholder:text-[#8b7280] dark:text-cyan-50 dark:placeholder:text-cyan-50/40 md:min-h-28 md:w-full md:px-4 md:py-3"
+                    placeholder="输入消息"
+                    rows={1}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!canSend}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#22263a] bg-[#ff7aa8] text-white shadow-[2px_2px_0_#22263a] transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-300/25 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none md:hidden"
+                    aria-label="发送消息"
+                  >
+                    {isSending ? <Loader2 size={17} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+                </div>
+                <div className="hidden flex-col gap-3 border-t-2 border-[#26223a]/15 bg-white/60 p-3 dark:border-cyan-300/10 dark:bg-white/5 md:flex sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 flex-wrap items-center gap-3 text-xs font-black text-[#6c5a68] dark:text-cyan-50/60">
                     <span className="font-mono">{activeModel || "no-model"}</span>
                     <span>流式开启</span>
@@ -729,7 +803,7 @@ export default function AiChatClient() {
           </form>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="hidden space-y-4 md:block">
           <section className="rounded-md border-2 border-[#26223a] bg-white/90 p-4 shadow-[6px_6px_0_#ffcf56] dark:border-cyan-300/20 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(34,211,238,0.14)]">
             <div className="flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-black uppercase text-[#22263a] dark:text-cyan-100">
@@ -771,11 +845,7 @@ export default function AiChatClient() {
                     key={conversation.id}
                     conversation={conversation}
                     isActive={conversation.id === currentConversation?.id}
-                    onSelect={() => {
-                      if (!isSending) {
-                        void loadConversationMessages(conversation);
-                      }
-                    }}
+                    onSelect={() => void selectConversation(conversation)}
                   />
                 ))
               ) : (
@@ -862,6 +932,225 @@ export default function AiChatClient() {
           </section>
         </aside>
       </div>
+
+      {isMobilePanelOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[#10131f]/50 backdrop-blur-sm"
+            onClick={() => setIsMobilePanelOpen(false)}
+            aria-label="关闭面板"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-ai-panel-title"
+            className="absolute inset-x-0 bottom-0 max-h-[84dvh] overflow-hidden rounded-t-[28px] border-x-2 border-t-2 border-[#26223a] bg-[#fff9ec] text-[#26223a] shadow-[0_-8px_0_rgba(255,122,168,0.38)] dark:border-cyan-300/25 dark:bg-[#10131f] dark:text-cyan-50 dark:shadow-[0_-8px_0_rgba(103,232,249,0.12)]"
+          >
+            <div className="sticky top-0 z-10 border-b-2 border-[#26223a] bg-[#fff9ec]/96 px-4 pb-3 pt-2 backdrop-blur-xl dark:border-cyan-300/15 dark:bg-[#10131f]/96">
+              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#26223a]/25 dark:bg-cyan-200/25" />
+              <div className="mt-3 flex items-center gap-3">
+                <div
+                  id="mobile-ai-panel-title"
+                  className="grid flex-1 grid-cols-2 rounded-full border border-[#22263a] bg-white p-1 text-xs font-black dark:border-cyan-300/20 dark:bg-white/10"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMobilePanelView("history")}
+                    className={`h-9 rounded-full transition ${
+                      mobilePanelView === "history"
+                        ? "bg-[#ffcf56] text-[#22263a] shadow-[2px_2px_0_#22263a] dark:bg-cyan-300 dark:shadow-none"
+                        : "text-[#6c5a68] dark:text-cyan-50/60"
+                    }`}
+                  >
+                    对话
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobilePanelView("settings")}
+                    className={`h-9 rounded-full transition ${
+                      mobilePanelView === "settings"
+                        ? "bg-[#ffcf56] text-[#22263a] shadow-[2px_2px_0_#22263a] dark:bg-cyan-300 dark:shadow-none"
+                        : "text-[#6c5a68] dark:text-cyan-50/60"
+                    }`}
+                  >
+                    设置
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobilePanelOpen(false)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#22263a] bg-white text-[#22263a] shadow-[2px_2px_0_#ff7aa8] dark:border-cyan-300/20 dark:bg-white/10 dark:text-cyan-50 dark:shadow-none"
+                  aria-label="关闭"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(84dvh-5.75rem)] overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              {mobilePanelView === "history" ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="flex items-center gap-2 text-sm font-black uppercase text-[#22263a] dark:text-cyan-100">
+                      <History size={16} />
+                      对话历史
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      {currentConversation && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobilePanelOpen(false);
+                            setConversationPendingDelete(currentConversation);
+                          }}
+                          disabled={isDeletingConversation || isSending}
+                          className="grid h-9 w-9 place-items-center rounded-full border border-[#22263a] bg-white text-[#22263a] transition active:translate-y-px disabled:opacity-50 dark:border-cyan-300/20 dark:bg-white/5 dark:text-cyan-50"
+                          aria-label="删除当前对话"
+                        >
+                          {isDeletingConversation ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={createConversation}
+                        disabled={isCreatingConversation}
+                        className="grid h-9 w-9 place-items-center rounded-full border border-[#22263a] bg-[#ff7aa8] text-white shadow-[2px_2px_0_#22263a] transition active:translate-y-px disabled:opacity-50 dark:border-cyan-300/20 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none"
+                        aria-label="新建对话"
+                      >
+                        {isCreatingConversation ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    {isLoadingConversations ? (
+                      <div className="rounded-xl border border-dashed border-cyan-200 bg-cyan-50/70 p-4 text-center text-xs font-black text-[#6c5a68] dark:border-cyan-300/20 dark:bg-cyan-300/5 dark:text-cyan-50/60">
+                        云端同步中
+                      </div>
+                    ) : conversations.length > 0 ? (
+                      conversations.map((conversation) => (
+                        <ConversationItem
+                          key={conversation.id}
+                          conversation={conversation}
+                          isActive={conversation.id === currentConversation?.id}
+                          onSelect={() => void selectConversation(conversation, true)}
+                        />
+                      ))
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-cyan-200 bg-cyan-50/70 p-4 text-center text-xs font-black text-[#6c5a68] dark:border-cyan-300/20 dark:bg-cyan-300/5 dark:text-cyan-50/60">
+                        暂无云端历史
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <section className="rounded-2xl border-2 border-[#26223a] bg-white/90 p-3 shadow-[3px_3px_0_#7dd3fc] dark:border-cyan-300/20 dark:bg-white/5 dark:shadow-none">
+                    <h2 className="flex items-center gap-2 text-sm font-black uppercase text-[#22263a] dark:text-cyan-100">
+                      <Settings2 size={16} />
+                      模型配置
+                    </h2>
+                    <div className="mt-3 flex items-center gap-2">
+                      <select
+                        value={selectedConfigValue}
+                        onChange={(event) => void selectConfiguredModel(event.target.value)}
+                        className="h-11 min-w-0 flex-1 rounded-xl border border-[#26223a] bg-[#f8fcff] px-3 font-mono text-xs font-black text-[#26223a] outline-none dark:border-cyan-300/30 dark:bg-[#151a2c] dark:text-cyan-50"
+                      >
+                        {!selectedConfigValue && (
+                          <option value="">
+                            {activeModel ? `${config.name || "本地配置"} / ${activeModel}` : "选择已配置模型"}
+                          </option>
+                        )}
+                        {cloudConfigs.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name || "未命名配置"} / {item.model || "未选择模型"}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={refreshConfiguredModels}
+                        disabled={isLoadingConfigs}
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#26223a] bg-cyan-200 text-[#26223a] shadow-[2px_2px_0_#26223a] disabled:opacity-60 dark:border-cyan-300/30 dark:bg-cyan-300 dark:shadow-none"
+                        aria-label="刷新已配置模型"
+                      >
+                        {isLoadingConfigs ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={17} />}
+                      </button>
+                      <Link
+                        href="/dashboard/ai/settings"
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#26223a] bg-[#ff7aa8] text-white shadow-[2px_2px_0_#26223a] dark:border-cyan-300/30 dark:bg-fuchsia-500 dark:shadow-none"
+                        aria-label="AI 配置"
+                      >
+                        <Settings2 size={17} />
+                      </Link>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border-2 border-[#26223a] bg-white/90 p-3 shadow-[3px_3px_0_#ffcf56] dark:border-cyan-300/20 dark:bg-white/5 dark:shadow-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="flex items-center gap-2 text-sm font-black uppercase text-[#22263a] dark:text-cyan-100">
+                        <FileText size={16} />
+                        系统提示词
+                      </h2>
+                      {isSavingSystemPrompt && <Loader2 size={14} className="animate-spin text-cyan-500" />}
+                    </div>
+                    <textarea
+                      value={systemPrompt}
+                      onChange={(event) => updateSystemPromptDraft(event.target.value)}
+                      onBlur={saveCurrentSystemPrompt}
+                      className="mt-3 min-h-28 w-full resize-none rounded-xl border border-[#22263a] bg-[#fffaf1] px-3 py-2 text-xs font-bold leading-5 text-[#22263a] outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-200 dark:border-cyan-300/20 dark:bg-[#151a2c] dark:text-cyan-50 dark:focus:ring-cyan-400/20"
+                      placeholder="你是..."
+                    />
+                  </section>
+
+                  <section className="rounded-2xl border-2 border-[#26223a] bg-white/90 p-3 shadow-[3px_3px_0_#7dd3fc] dark:border-cyan-300/20 dark:bg-white/5 dark:shadow-none">
+                    <h2 className="flex items-center gap-2 text-sm font-black uppercase text-[#22263a] dark:text-cyan-100">
+                      <BrainCircuit size={16} />
+                      DeepSeek 模式
+                    </h2>
+                    <div className="mt-3 grid gap-2">
+                      {DEEPSEEK_MODE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => void selectDeepSeekMode(option.value)}
+                          disabled={!isDeepSeekSelected || isSending}
+                          className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-left transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 ${
+                            deepSeekMode === option.value
+                              ? "border-[#22263a] bg-[#ffcf56] text-[#22263a] shadow-[2px_2px_0_#22263a] dark:border-cyan-200 dark:bg-cyan-300 dark:shadow-none"
+                              : "border-cyan-100 bg-[#f8fcff] text-[#22263a] dark:border-cyan-300/15 dark:bg-[#151a2c] dark:text-cyan-50"
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-black">{option.label}</span>
+                            <span className="mt-0.5 block truncate font-mono text-[10px] font-bold opacity-70">
+                              {option.code}
+                            </span>
+                          </span>
+                          {deepSeekMode === option.value && <Sparkles size={15} className="shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border-2 border-[#26223a] bg-[#26223a] p-3 text-white shadow-[3px_3px_0_#ff7aa8] dark:border-cyan-300/20 dark:bg-[#0c1020] dark:shadow-none">
+                    <h2 className="flex items-center gap-2 text-sm font-black uppercase text-cyan-100">
+                      <Cloud size={16} />
+                      当前配置
+                    </h2>
+                    <div className="mt-3 space-y-2">
+                      <InfoRow label="Name" value={config.name || "Unset"} />
+                      <InfoRow label="Model" value={activeModel || "Unset"} />
+                      <InfoRow label="Key" value={hasConfig ? "Ready" : "Unset"} />
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {conversationPendingDelete && (
         <DeleteConversationDialog
@@ -1088,9 +1377,9 @@ function ChatBubble({ message }: { message: AiChatMessage }) {
   const hasReasoning = !isUser && Boolean(message.reasoningContent?.trim());
 
   return (
-    <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+    <div className={`flex items-start gap-2 md:gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border border-[#22263a] ${
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#22263a] md:h-9 md:w-9 md:rounded-md ${
           isUser
             ? "bg-[#7dd3fc] text-[#22263a]"
             : "bg-[#ffcf56] text-[#22263a] dark:border-cyan-300/30"
@@ -1099,7 +1388,7 @@ function ChatBubble({ message }: { message: AiChatMessage }) {
         {isUser ? <UserRound size={17} /> : <BotMessageSquare size={17} />}
       </div>
       <article
-        className={`max-w-[min(720px,82%)] rounded-lg border px-4 py-3 shadow-sm ${
+        className={`max-w-[min(720px,84%)] rounded-2xl border px-3 py-2.5 shadow-sm md:rounded-lg md:px-4 md:py-3 ${
           isUser
             ? "border-[#22263a] bg-[#22263a] text-white"
             : "border-cyan-200 bg-cyan-50 text-[#22263a] dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50"
@@ -1107,9 +1396,9 @@ function ChatBubble({ message }: { message: AiChatMessage }) {
       >
         {hasReasoning && <ReasoningPanel content={message.reasoningContent || ""} />}
         {message.content ? (
-          <p className="whitespace-pre-wrap break-words text-sm font-semibold leading-6">{message.content}</p>
+          <p className="whitespace-pre-wrap break-words text-[13px] font-semibold leading-6 md:text-sm">{message.content}</p>
         ) : (
-          <span className="inline-flex items-center gap-2 text-sm font-black leading-6">
+          <span className="inline-flex items-center gap-2 text-[13px] font-black leading-6 md:text-sm">
             <Loader2 size={15} className="animate-spin" />
             {hasReasoning ? "正在整理回答" : "思考中"}
           </span>
