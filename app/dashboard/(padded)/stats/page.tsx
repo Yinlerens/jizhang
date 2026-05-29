@@ -120,17 +120,18 @@ export default function StatsPage() {
     return (
         <div className="space-y-8">
             <div>
-                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">统计分析</h2>
-                <p className="text-zinc-500 dark:text-zinc-400">深度分析您的消费习惯和支出分布</p>
+                <div className="anime-kicker">Data Vision</div>
+                <h2 className="anime-page-title mt-4">统计分析</h2>
+                <p className="anime-page-subtitle">深度分析您的消费习惯和支出分布</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Daily Spending Bar Chart */}
-                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6">本月每日支出</h3>
+                <div className="anime-surface p-5 lg:col-span-2">
+                    <h3 className="anime-panel-title mb-5 text-lg">本月每日支出</h3>
                     <div className="h-[350px]">
                         {loading ? (
-                            <div className="h-full flex items-center justify-center text-zinc-400">
+                            <div className="flex h-full items-center justify-center text-sm font-black text-[#8f5b72] dark:text-cyan-100/60">
                                 加载中...
                             </div>
                         ) : (
@@ -140,24 +141,24 @@ export default function StatsPage() {
                 </div>
 
                 {/* Category Ranking */}
-                <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6">支出排行榜</h3>
+                <div className="anime-surface p-5">
+                    <h3 className="anime-panel-title mb-5 text-lg">支出排行榜</h3>
                     <div className="space-y-6">
                         {categoryData.map((item, index) => (
                             <div key={item.name} className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="w-3 h-3 rounded-full"
+                                            className="h-3 w-3 rounded-sm border border-[#26223a]"
                                             style={{ backgroundColor: getChartColor(index) }}
                                         />
-                                        <span className="font-medium text-zinc-700 dark:text-zinc-300">{item.name}</span>
+                                        <span className="font-black text-[#3a3147] dark:text-cyan-50">{item.name}</span>
                                     </div>
-                                    <span className="font-bold text-zinc-900 dark:text-zinc-50">¥{item.value.toLocaleString()}</span>
+                                    <span className="font-black text-[#26223a] dark:text-cyan-50">¥{item.value.toLocaleString()}</span>
                                 </div>
-                                <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                                <div className="h-2 w-full overflow-hidden rounded-md border border-[#26223a]/15 bg-[#fff1f6] dark:border-cyan-300/10 dark:bg-white/10">
                                     <div
-                                             className="h-full rounded-full transition-all duration-500"
+                                             className="h-full rounded-md transition-all duration-500"
                                          style={{
                                              width: `${maxCategoryValue > 0 ? (item.value / maxCategoryValue) * 100 : 0}%`,
                                              backgroundColor: getChartColor(index)
@@ -167,7 +168,7 @@ export default function StatsPage() {
                             </div>
                         ))}
                         {categoryData.length === 0 && (
-                            <p className="text-center text-sm text-zinc-500 dark:text-zinc-400 py-12">暂无统计数据</p>
+                            <p className="py-12 text-center text-sm font-bold text-[#8f5b72] dark:text-cyan-100/60">暂无统计数据</p>
                         )}
                     </div>
                 </div>

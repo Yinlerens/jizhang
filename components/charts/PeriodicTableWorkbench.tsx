@@ -27,17 +27,17 @@ export default function PeriodicTableWorkbench() {
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="anime-surface p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between flex-wrap">
           <div className="flex flex-wrap gap-2" aria-label="元素类别筛选">
             {/* 分类按钮驱动 ECharts option 重建，由 chart 组件负责局部变暗和高亮。 */}
             <button
               type="button"
               onClick={() => setFocusCategory("all")}
-              className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition duration-200 ${
+              className={`flex h-9 items-center gap-2 rounded-md border-2 px-3 text-sm font-black transition duration-200 ${
                 focusCategory === "all"
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
-                  : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  ? "border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[3px_3px_0_#ff7aa8] dark:border-cyan-200 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none"
+                  : "border-[#26223a]/15 bg-white/55 text-[#6e6172] hover:border-[#26223a] hover:bg-[#fff1f6] dark:border-cyan-300/10 dark:bg-white/5 dark:text-cyan-100/70 dark:hover:border-cyan-300/30"
               }`}
             >
               <Hexagon size={15} />
@@ -53,20 +53,23 @@ export default function PeriodicTableWorkbench() {
                   key={item.category}
                   type="button"
                   onClick={() => setFocusCategory(item.category)}
-                  className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition duration-200 ${
+                  className={`flex h-9 items-center gap-2 rounded-md border-2 px-3 text-sm font-black transition duration-200 ${
                     active
-                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
-                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      ? "border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[3px_3px_0_#ff7aa8] dark:border-cyan-200 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none"
+                      : "border-[#26223a]/15 bg-white/55 text-[#6e6172] hover:border-[#26223a] hover:bg-[#fff1f6] dark:border-cyan-300/10 dark:bg-white/5 dark:text-cyan-100/70 dark:hover:border-cyan-300/30"
                   }`}
                 >
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
+                    className="h-2.5 w-2.5 rounded-sm border border-[#26223a]"
                     style={{ backgroundColor: palette.accent }}
                   />
                   <span>{categoryLabels[item.category]}</span>
                 </button>
               );
             })}
+          </div>
+          <div className="inline-flex h-9 w-fit items-center rounded-md border-2 border-[#26223a] bg-[#ff7aa8] px-3 font-mono text-xs font-black text-white shadow-[3px_3px_0_#26223a] dark:border-cyan-200 dark:bg-fuchsia-500 dark:shadow-none">
+            {visibleCount} ELEMENTS
           </div>
         </div>
       </div>

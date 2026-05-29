@@ -4,6 +4,7 @@ import type {
   AiChatConversationListResponse,
   AiChatConversationResponse,
   AiChatMessagesResponse,
+  AiDeepSeekMode,
 } from "@/lib/ai/types";
 
 export async function loadAiConversations() {
@@ -17,6 +18,7 @@ export async function loadAiConversations() {
 export async function createAiConversation(input?: {
   title?: string;
   systemPrompt?: string;
+  deepSeekMode?: AiDeepSeekMode;
   providerConfigId?: string | null;
   model?: string;
 }) {
@@ -34,6 +36,7 @@ export async function updateAiConversation(
   input: {
     title?: string;
     systemPrompt?: string;
+    deepSeekMode?: AiDeepSeekMode;
     providerConfigId?: string | null;
     model?: string;
   },

@@ -12,8 +12,9 @@ export default async function AccountingPage() {
     return (
         <div className="space-y-8">
             <div>
-                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">记账概览</h2>
-                <p className="text-zinc-500 dark:text-zinc-400">查看您的财务状况和最近活动</p>
+                <div className="anime-kicker">Finance Panel</div>
+                <h2 className="anime-page-title mt-4">记账概览</h2>
+                <p className="anime-page-subtitle">查看您的财务状况和最近活动</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

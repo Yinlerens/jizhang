@@ -11,6 +11,7 @@ import type {
   AiChatConversation,
   AiChatConversationListResponse,
   AiChatConversationResponse,
+  AiDeepSeekMode,
 } from "@/lib/ai/types";
 
 export const runtime = "nodejs";
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       title?: string;
       systemPrompt?: string;
+      deepSeekMode?: AiDeepSeekMode;
       providerConfigId?: string | null;
       model?: string;
     };
@@ -71,6 +73,7 @@ export async function PATCH(request: Request) {
       id?: string;
       title?: string;
       systemPrompt?: string;
+      deepSeekMode?: AiDeepSeekMode;
       providerConfigId?: string | null;
       model?: string;
     };

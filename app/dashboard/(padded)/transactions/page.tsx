@@ -85,28 +85,29 @@ export default function TransactionsPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">账单记录</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400">管理您的所有交易明细</p>
+                    <div className="anime-kicker">Ledger Log</div>
+                    <h2 className="anime-page-title mt-4">账单记录</h2>
+                    <p className="anime-page-subtitle">管理您的所有交易明细</p>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <div className="relative flex-1 md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8f5b72] dark:text-cyan-100/60" size={18} />
                         <input
                             type="text"
                             placeholder="搜索商户或分类"
-                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-500 outline-none"
+                            className="anime-input h-10 w-full px-4 pl-10 text-sm font-bold"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button className="p-2 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <button className="grid h-10 w-10 place-items-center rounded-md border-2 border-[#26223a] bg-white/80 text-[#26223a] transition hover:-translate-y-0.5 dark:border-cyan-300/25 dark:bg-white/10 dark:text-cyan-50">
                         <Filter size={18} />
                     </button>
                     <button
                         onClick={handleExport}
                         disabled={filteredTransactions.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="anime-action"
                     >
                         <Download size={18} />
                         <span className="hidden sm:inline">导出</span>
@@ -114,32 +115,32 @@ export default function TransactionsPage() {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+            <div className="anime-surface overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-zinc-50 dark:bg-zinc-800/50">
+                        <thead className="bg-[#ffd657] text-[#26223a] dark:bg-cyan-300 dark:text-[#10131f]">
                             <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">时间</th>
-                                <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">商户</th>
-                                <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">分类</th>
-                                <th className="px-6 py-4 text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">金额</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase">时间</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase">商户</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase">分类</th>
+                                <th className="px-6 py-4 text-right text-xs font-black uppercase">金额</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        <tbody className="divide-y divide-[#26223a]/10 dark:divide-cyan-300/10">
                             {filteredTransactions.map((t) => (
-                                <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition duration-150">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-400">
+                                <tr key={t.id} className="transition duration-150 hover:bg-[#fff1f6] dark:hover:bg-cyan-300/5">
+                                    <td className="whitespace-nowrap px-6 py-4 text-sm font-bold text-[#6e6172] dark:text-cyan-100/60">
                                         {format(new Date(t.occurred_at), 'yyyy-MM-dd HH:mm')}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                                    <td className="whitespace-nowrap px-6 py-4 text-sm font-black text-[#26223a] dark:text-cyan-50">
                                         {t.merchant || '未填写'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-full">
+                                    <td className="whitespace-nowrap px-6 py-4">
+                                        <span className="rounded-md border border-[#26223a] bg-[#bdf7b7] px-2 py-1 text-xs font-black text-[#26223a] dark:border-cyan-200 dark:bg-cyan-300 dark:text-[#10131f]">
                                             {t.category || '未分类'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-zinc-900 dark:text-zinc-50">
+                                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-black text-[#26223a] dark:text-cyan-50">
                                         ¥{Number(t.amount).toLocaleString()}
                                     </td>
                                 </tr>
@@ -149,7 +150,7 @@ export default function TransactionsPage() {
                 </div>
                 {!loading && filteredTransactions.length === 0 && (
                     <div className="py-12 text-center">
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">没有找到相关记录</p>
+                        <p className="text-sm font-bold text-[#8f5b72] dark:text-cyan-100/60">没有找到相关记录</p>
                     </div>
                 )}
             </div>

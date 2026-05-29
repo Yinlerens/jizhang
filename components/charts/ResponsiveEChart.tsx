@@ -65,7 +65,7 @@ export default function ResponsiveEChart({
     <div className={`relative min-w-0 ${className}`} style={{ height }}>
       <div ref={containerRef} className="h-full w-full" />
       {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-zinc-400">
+        <div className="absolute inset-0 flex items-center justify-center text-sm font-black text-[#8f5b72] dark:text-cyan-100/60">
           {loadingLabel}
         </div>
       )}

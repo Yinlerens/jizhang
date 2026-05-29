@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
   return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <div className="anime-app-shell flex h-screen overflow-hidden">
       {/* 统一用户识别：同步 PostHog + Sentry */}
       <IdentifyUser userId={user.id} email={user.email ?? ''} />
 
@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+        <main className="anime-main-scroll flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
 
         {/* Mobile Bottom Nav */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">

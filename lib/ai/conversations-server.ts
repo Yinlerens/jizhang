@@ -6,10 +6,11 @@ import type {
   AiChatMessage,
   AiChatMessageRecord,
   AiChatRole,
+  AiDeepSeekMode,
 } from "@/lib/ai/types";
 
 const conversationColumns =
-  "id,user_id,title,system_prompt,provider_config_id,model,last_message_at,created_at,updated_at";
+  "id,user_id,title,system_prompt,deepseek_mode,provider_config_id,model,last_message_at,created_at,updated_at";
 const messageColumns =
   "id,conversation_id,user_id,role,content,reasoning_content,created_at,updated_at";
 const DEFAULT_CONVERSATION_TITLE = "新对话";
@@ -48,6 +49,7 @@ export async function loadStoredAiConversation(id: string) {
 export async function createStoredAiConversation(input: {
   title?: string;
   systemPrompt?: string;
+  deepSeekMode?: AiDeepSeekMode;
   providerConfigId?: string | null;
   model?: string;
 }) {
@@ -60,6 +62,7 @@ export async function createStoredAiConversation(input: {
       user_id: userId,
       title: normalizeConversationTitle(input.title || DEFAULT_CONVERSATION_TITLE),
       system_prompt: normalizeSystemPrompt(input.systemPrompt),
+      deepseek_mode: normalizeDeepSeekMode(input.deepSeekMode),
       provider_config_id: input.providerConfigId || null,
       model: input.model?.trim() ?? "",
     })
@@ -78,6 +81,7 @@ export async function updateStoredAiConversation(
   input: {
     title?: string;
     systemPrompt?: string;
+    deepSeekMode?: AiDeepSeekMode;
     providerConfigId?: string | null;
     model?: string;
     lastMessageAt?: string | null;
@@ -95,6 +99,10 @@ export async function updateStoredAiConversation(
 
   if (input.systemPrompt !== undefined) {
     patch.system_prompt = normalizeSystemPrompt(input.systemPrompt);
+  }
+
+  if (input.deepSeekMode !== undefined) {
+    patch.deepseek_mode = normalizeDeepSeekMode(input.deepSeekMode);
   }
 
   if (input.providerConfigId !== undefined) {
@@ -226,6 +234,7 @@ export function toPublicAiConversation(
     id: record.id,
     title: record.title,
     systemPrompt: record.system_prompt,
+    deepSeekMode: normalizeDeepSeekMode(record.deepseek_mode),
     providerConfigId: record.provider_config_id,
     model: record.model,
     lastMessageAt: record.last_message_at,
@@ -291,12 +300,20 @@ function normalizeSystemPrompt(systemPrompt?: string) {
   return normalized;
 }
 
+function normalizeDeepSeekMode(mode?: AiDeepSeekMode | null): AiDeepSeekMode {
+  if (mode === "inner_os" || mode === "no_inner_os") {
+    return mode;
+  }
+
+  return "default";
+}
+
 function toConversationTableError(message: string) {
   if (
     (message.includes("ai_chat_conversations") || message.includes("ai_chat_messages")) &&
     (message.includes("does not exist") || message.includes("Could not find"))
   ) {
-    return "对话历史表不存在，请先执行 Supabase migration";
+    return "对话历史表结构未更新，请先执行 Supabase migration";
   }
 
   return message;

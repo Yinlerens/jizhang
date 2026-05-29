@@ -88,17 +88,24 @@ export default function Sidebar({ user }: { user: User }) {
   const isActive = (href: string) => pathname === href;
 
   return (
-    <div className="w-64 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800">
-      <div className="p-6">
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-          <div className="w-8 h-8 bg-zinc-900 dark:bg-zinc-50 rounded-lg flex items-center justify-center">
-            <ReceiptText size={20} className="text-white dark:text-zinc-900" />
+    <div className="relative flex w-64 flex-col border-r-2 border-[#26223a] bg-[#fff9ec]/92 shadow-[8px_0_0_rgba(255,122,168,0.22)] backdrop-blur dark:border-cyan-300/25 dark:bg-[#151a2c]/92 dark:shadow-[8px_0_0_rgba(103,232,249,0.08)]">
+      <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,214,87,0.20)_0_8px,transparent_8px_20px)] opacity-45" />
+
+      <div className="relative p-5">
+        <h1 className="anime-display flex items-center gap-3 text-xl font-black text-[#26223a] dark:text-cyan-50">
+          <div className="grid h-10 w-10 place-items-center rounded-md border-2 border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[3px_3px_0_#ff7aa8] dark:border-cyan-200 dark:bg-cyan-300">
+            <ReceiptText size={21} />
           </div>
-          AnimationFrame
+          <span className="leading-none">
+            AnimationFrame
+            <span className="mt-1 block font-mono text-[10px] font-black uppercase text-[#8f5b72] dark:text-cyan-100/60">
+              Manga OS
+            </span>
+          </span>
         </h1>
       </div>
 
-      <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+      <nav className="relative flex-1 space-y-2 overflow-y-auto px-4">
         {menuGroups.map((group) => {
           const isOpen = openGroups.includes(group.label);
           const hasActiveItem = group.items.some(
@@ -109,9 +116,9 @@ export default function Sidebar({ user }: { user: User }) {
             <div key={group.label}>
               <button
                 onClick={() => toggleGroup(group.label)}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition duration-200 ${hasActiveItem && !isOpen
-                    ? "text-zinc-900 dark:text-zinc-50"
-                    : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className={`flex w-full items-center gap-3 rounded-md border-2 px-3 py-3 text-sm font-black transition duration-200 ${hasActiveItem
+                    ? "border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[3px_3px_0_#26223a] dark:border-cyan-200 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none"
+                    : "border-transparent text-[#6e6172] hover:border-[#26223a] hover:bg-white/75 hover:text-[#26223a] dark:text-cyan-50/60 dark:hover:border-cyan-300/30 dark:hover:bg-white/10 dark:hover:text-cyan-50"
                   }`}
               >
                 <group.icon size={20} />
@@ -123,14 +130,14 @@ export default function Sidebar({ user }: { user: User }) {
               </button>
 
               {isOpen && (
-                <div className="ml-4 space-y-1">
+                <div className="ml-4 mt-2 space-y-1 border-l-2 border-dashed border-[#26223a]/25 pl-3 dark:border-cyan-300/20">
                   {group.items.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition duration-200 ${isActive(item.href)
-                          ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                          : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm font-black transition duration-200 ${isActive(item.href)
+                          ? "border-[#26223a] bg-[#ff7aa8] text-white shadow-[3px_3px_0_#26223a] dark:border-cyan-200 dark:bg-fuchsia-500 dark:shadow-none"
+                          : "border-transparent text-[#5f5269] hover:border-[#26223a] hover:bg-white/80 dark:text-cyan-50/70 dark:hover:border-cyan-300/30 dark:hover:bg-white/10"
                         }`}
                     >
                       <item.icon size={18} />
@@ -146,22 +153,24 @@ export default function Sidebar({ user }: { user: User }) {
         {/* 设置入口暂时隐藏；恢复时可作为独立一级链接放回这里。 */}
       </nav>
 
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
-        <div className="flex items-center gap-3 px-4">
-          <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+      <div className="relative space-y-4 border-t-2 border-[#26223a] p-4 dark:border-cyan-300/20">
+        <div className="flex items-center gap-3 rounded-md border-2 border-[#26223a] bg-white/75 px-3 py-2 shadow-[3px_3px_0_#7dd3fc] dark:border-cyan-300/25 dark:bg-white/10 dark:shadow-none">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border-2 border-[#26223a] bg-[#bdf7b7] text-sm font-black text-[#26223a] dark:border-cyan-200 dark:bg-cyan-300">
+            {user.email?.[0]?.toUpperCase() || "U"}
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50 truncate">
+            <p className="truncate text-sm font-black text-[#26223a] dark:text-cyan-50">
               {user.email?.split("@")[0]}
             </p>
-            <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+            <p className="truncate font-mono text-xs font-bold text-[#8f5b72] dark:text-cyan-100/55">{user.email}</p>
           </div>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-600 transition duration-200 rounded-xl"
+          className="flex w-full items-center gap-3 rounded-md border-2 border-transparent px-4 py-3 text-[#6e6172] transition duration-200 hover:border-[#26223a] hover:bg-[#fff1f6] hover:text-[#df4779] dark:text-cyan-50/60 dark:hover:border-rose-300/30 dark:hover:bg-rose-400/10 dark:hover:text-rose-200"
         >
           <LogOut size={20} />
-          <span className="font-medium">注销登出</span>
+          <span className="font-black">注销登出</span>
         </button>
       </div>
     </div>

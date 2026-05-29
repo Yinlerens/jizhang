@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LogIn, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -33,20 +34,23 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
-      <div className="w-full max-w-md space-y-8 bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
+    <div className="anime-app-shell flex min-h-screen items-center justify-center overflow-x-hidden p-4">
+      <div className="anime-surface w-80 space-y-8 p-6 sm:w-[28rem] sm:p-8">
         <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md border-2 border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[4px_4px_0_#ff7aa8] dark:border-cyan-200 dark:bg-cyan-300">
+            <Sparkles size={24} />
+          </div>
+          <h2 className="anime-page-title">
             欢迎回来
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm font-bold text-[#8f5b72] dark:text-cyan-100/60">
             请输入您的账号信息登录记账管理系统
           </p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+            <div className="rounded-md border-2 border-[#e84f80] bg-[#fff1f6] px-4 py-3 text-sm font-bold text-[#b83261] dark:bg-rose-400/10 dark:text-rose-200">
               {error}
             </div>
           )}
@@ -55,7 +59,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                className="block text-sm font-black text-[#6e6172] dark:text-cyan-100/70"
               >
                 邮箱地址
               </label>
@@ -63,7 +67,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 required
-                className="mt-1 block w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition duration-200 text-zinc-900 dark:text-zinc-50"
+                className="anime-input mt-2 block w-full px-4 py-3 font-bold"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -72,7 +76,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                className="block text-sm font-black text-[#6e6172] dark:text-cyan-100/70"
               >
                 密码
               </label>
@@ -80,7 +84,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 required
-                className="mt-1 block w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition duration-200 text-zinc-900 dark:text-zinc-50"
+                className="anime-input mt-2 block w-full px-4 py-3 font-bold"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -92,17 +96,18 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 transition duration-200 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="anime-action w-full"
             >
+              <LogIn size={18} />
               {loading ? "正在登录..." : "登录"}
             </button>
           </div>
 
           <div className="text-center text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">还没有账号？</span>
+            <span className="font-bold text-[#8f5b72] dark:text-cyan-100/60">还没有账号？</span>
             <Link
               href="/register"
-              className="ml-1 font-medium text-zinc-900 dark:text-zinc-50 hover:underline"
+              className="ml-1 font-black text-[#26223a] hover:underline dark:text-cyan-50"
             >
               立即注册
             </Link>

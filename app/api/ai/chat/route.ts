@@ -23,7 +23,12 @@ import {
   toAiErrorMessage,
   toAiErrorStatus,
 } from "@/lib/ai/openai-client";
-import type { AiChatMessage, AiChatStreamEvent, AiProviderConfig } from "@/lib/ai/types";
+import type {
+  AiChatMessage,
+  AiChatStreamEvent,
+  AiDeepSeekMode,
+  AiProviderConfig,
+} from "@/lib/ai/types";
 
 export const runtime = "nodejs";
 
@@ -33,6 +38,7 @@ interface ChatRequestBody {
   message?: string;
   model?: string;
   systemPrompt?: string;
+  deepSeekMode?: AiDeepSeekMode;
 }
 
 export async function POST(request: Request) {
@@ -73,10 +79,14 @@ export async function POST(request: Request) {
       throw new AiConfigError("对话不存在");
     }
 
-    const chatMessages = sanitizeMessages([
-      ...conversationContext.messages.map(toPublicAiMessage),
-      toPublicAiMessage(userMessage),
-    ]);
+    const chatMessages = withDeepSeekModeMarker(
+      sanitizeMessages([
+        ...conversationContext.messages.map(toPublicAiMessage),
+        toPublicAiMessage(userMessage),
+      ]),
+      model,
+      storedConversation.deepseek_mode,
+    );
     const messages = withSystemPrompt(chatMessages, storedConversation.system_prompt);
 
     const completion = await client.chat.completions.create(
@@ -187,6 +197,7 @@ async function prepareConversation(body: ChatRequestBody, model: string, userCon
     const conversation = await createStoredAiConversation({
       title: createConversationTitle(userContent),
       systemPrompt: body.systemPrompt,
+      deepSeekMode: body.deepSeekMode,
       providerConfigId: body.config?.id ?? null,
       model,
     });
@@ -208,6 +219,7 @@ async function prepareConversation(body: ChatRequestBody, model: string, userCon
   const conversation = await updateStoredAiConversation(existing.id, {
     title: shouldRename ? createConversationTitle(userContent) : undefined,
     systemPrompt: body.systemPrompt ?? existing.system_prompt,
+    deepSeekMode: body.deepSeekMode ?? existing.deepseek_mode ?? "default",
     providerConfigId: body.config?.id ?? existing.provider_config_id ?? null,
     model,
   });
@@ -242,6 +254,45 @@ function createChatCompletionParams(
 
 function isDeepSeekModel(model: string) {
   return model.toLowerCase().includes("deepseek");
+}
+
+const DEEPSEEK_MODE_MARKERS: Record<Exclude<AiDeepSeekMode, "default">, string> = {
+  inner_os:
+    "\n\n【角色沉浸要求】在你的思考过程（<think>标签内）中，请遵守以下规则：\n" +
+    '1. 请以角色第一人称进行内心独白，用括号包裹内心活动，例如"（心想：……）"或"(内心OS：……)"\n' +
+    '2. 用第一人称描写角色的内心感受，例如"我心想""我觉得""我暗自"等\n' +
+    "3. 思考内容应沉浸在角色中，通过内心独白分析剧情和规划回复",
+  no_inner_os:
+    "\n\n【思维模式要求】在你的思考过程（<think>标签内）中，请遵守以下规则：\n" +
+    '1. 禁止使用圆括号包裹内心独白，例如"（心想：……）"或"(内心OS：……)"，所有分析内容直接陈述即可\n' +
+    '2. 禁止以角色第一人称描写内心活动，例如"我心想""我觉得""我暗自"等，请用分析性语言替代\n' +
+    "3. 思考内容应聚焦于剧情走向分析和回复内容规划，不要在思考中进行角色扮演式的内心戏表演",
+};
+
+function withDeepSeekModeMarker(
+  messages: ChatCompletionMessageParam[],
+  model: string,
+  mode?: AiDeepSeekMode | null,
+) {
+  if (!isDeepSeekModel(model) || !mode || mode === "default") {
+    return messages;
+  }
+
+  const marker = DEEPSEEK_MODE_MARKERS[mode];
+  let didApplyMarker = false;
+
+  return messages.map((message) => {
+    if (didApplyMarker || message.role !== "user" || typeof message.content !== "string") {
+      return message;
+    }
+
+    didApplyMarker = true;
+
+    return {
+      ...message,
+      content: `${message.content}${marker}`,
+    };
+  });
 }
 
 function extractReasoningDelta(delta: ChatCompletionDelta) {

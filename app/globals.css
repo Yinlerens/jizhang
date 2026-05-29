@@ -6,8 +6,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-moe-sans);
+  --font-mono: var(--font-moe-mono);
+  --font-display: var(--font-moe-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,9 +48,11 @@
 }
 
 body {
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-moe-sans), "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 * {
@@ -76,72 +79,92 @@ svg {
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.5rem;
+  --anime-ink: #26223a;
+  --anime-paper: #fff9ec;
+  --anime-surface: #fffdf8;
+  --anime-cyan: #7dd3fc;
+  --anime-pink: #ff7aa8;
+  --anime-yellow: #ffd657;
+  --anime-mint: #bdf7b7;
+  --anime-lavender: #c7b7ff;
+  --anime-muted: #6e6172;
+  --anime-shadow: #26223a;
+  --background: oklch(0.98 0.028 82);
+  --foreground: oklch(0.24 0.051 292);
+  --card: oklch(0.99 0.014 75);
+  --card-foreground: oklch(0.24 0.051 292);
+  --popover: oklch(0.99 0.014 75);
+  --popover-foreground: oklch(0.24 0.051 292);
+  --primary: oklch(0.66 0.2 6);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.88 0.13 85);
+  --secondary-foreground: oklch(0.24 0.051 292);
+  --muted: oklch(0.94 0.035 72);
+  --muted-foreground: oklch(0.48 0.048 319);
+  --accent: oklch(0.84 0.11 219);
+  --accent-foreground: oklch(0.24 0.051 292);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.85 0.062 313);
+  --input: oklch(0.91 0.043 71);
+  --ring: oklch(0.74 0.13 219);
+  --chart-1: oklch(0.74 0.18 6);
+  --chart-2: oklch(0.77 0.14 219);
+  --chart-3: oklch(0.85 0.15 88);
+  --chart-4: oklch(0.79 0.13 150);
+  --chart-5: oklch(0.72 0.14 294);
+  --sidebar: oklch(0.985 0.021 78);
+  --sidebar-foreground: oklch(0.24 0.051 292);
+  --sidebar-primary: oklch(0.66 0.2 6);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.88 0.13 85);
+  --sidebar-accent-foreground: oklch(0.24 0.051 292);
+  --sidebar-border: oklch(0.32 0.051 292);
+  --sidebar-ring: oklch(0.74 0.13 219);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --anime-ink: #f8fbff;
+  --anime-paper: #111424;
+  --anime-surface: #181d33;
+  --anime-cyan: #67e8f9;
+  --anime-pink: #fb6aa0;
+  --anime-yellow: #fde047;
+  --anime-mint: #86efac;
+  --anime-lavender: #c4b5fd;
+  --anime-muted: #b9c2d9;
+  --anime-shadow: #07101e;
+  --background: oklch(0.18 0.035 276);
+  --foreground: oklch(0.96 0.01 247);
+  --card: oklch(0.23 0.043 276);
+  --card-foreground: oklch(0.96 0.01 247);
+  --popover: oklch(0.23 0.043 276);
+  --popover-foreground: oklch(0.96 0.01 247);
+  --primary: oklch(0.75 0.18 12);
+  --primary-foreground: oklch(0.12 0.026 276);
+  --secondary: oklch(0.32 0.069 276);
+  --secondary-foreground: oklch(0.96 0.01 247);
+  --muted: oklch(0.31 0.042 276);
+  --muted-foreground: oklch(0.78 0.034 257);
+  --accent: oklch(0.75 0.13 218);
+  --accent-foreground: oklch(0.12 0.026 276);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 18%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.78 0.12 218);
+  --chart-1: oklch(0.75 0.18 12);
+  --chart-2: oklch(0.78 0.13 218);
+  --chart-3: oklch(0.86 0.15 88);
+  --chart-4: oklch(0.79 0.13 150);
+  --chart-5: oklch(0.73 0.14 294);
+  --sidebar: oklch(0.21 0.04 276);
+  --sidebar-foreground: oklch(0.96 0.01 247);
+  --sidebar-primary: oklch(0.75 0.18 12);
+  --sidebar-primary-foreground: oklch(0.12 0.026 276);
+  --sidebar-accent: oklch(0.32 0.069 276);
+  --sidebar-accent-foreground: oklch(0.96 0.01 247);
+  --sidebar-border: oklch(1 0 0 / 18%);
+  --sidebar-ring: oklch(0.78 0.12 218);
 }
 
 @layer base {
@@ -150,5 +173,200 @@ svg {
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  .anime-display {
+    font-family: var(--font-moe-display), var(--font-moe-sans), "Microsoft YaHei", sans-serif;
+    letter-spacing: 0;
+  }
+}
+
+@layer components {
+  .anime-app-shell {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    background:
+      linear-gradient(135deg, rgba(255, 122, 168, 0.16) 0 12%, transparent 12% 100%),
+      linear-gradient(315deg, rgba(125, 211, 252, 0.18) 0 10%, transparent 10% 100%),
+      repeating-linear-gradient(90deg, rgba(38, 34, 58, 0.055) 0 1px, transparent 1px 34px),
+      repeating-linear-gradient(0deg, rgba(38, 34, 58, 0.045) 0 1px, transparent 1px 34px),
+      linear-gradient(180deg, #fff9ec 0%, #f8fbff 55%, #fff0f6 100%);
+    color: var(--anime-ink);
+  }
+
+  .dark .anime-app-shell {
+    background:
+      linear-gradient(135deg, rgba(251, 106, 160, 0.18) 0 12%, transparent 12% 100%),
+      linear-gradient(315deg, rgba(103, 232, 249, 0.16) 0 10%, transparent 10% 100%),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
+      linear-gradient(180deg, #121527 0%, #171b31 55%, #22162a 100%);
+    color: var(--anime-ink);
+  }
+
+  .anime-app-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(135deg, transparent 0 18px, rgba(255, 214, 87, 0.28) 18px 22px, transparent 22px 40px),
+      repeating-linear-gradient(45deg, transparent 0 24px, rgba(255, 122, 168, 0.16) 24px 28px, transparent 28px 52px);
+    mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+    opacity: 0.7;
+  }
+
+  .anime-main-scroll {
+    position: relative;
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08)),
+      transparent;
+  }
+
+  .dark .anime-main-scroll {
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
+      transparent;
+  }
+
+  .anime-page-frame {
+    min-height: 100%;
+    padding: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .anime-page-frame {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .anime-page-frame {
+      padding: 2rem;
+    }
+  }
+
+  .anime-surface {
+    border: 2px solid var(--anime-ink);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 249, 236, 0.9)),
+      var(--anime-surface);
+    box-shadow: 6px 6px 0 var(--anime-shadow);
+    color: var(--anime-ink);
+  }
+
+  .dark .anime-surface {
+    border-color: rgba(125, 211, 252, 0.34);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(103, 232, 249, 0.03)),
+      var(--anime-surface);
+    box-shadow: 6px 6px 0 rgba(251, 106, 160, 0.18);
+  }
+
+  .anime-panel-title {
+    color: var(--anime-ink);
+    font-family: var(--font-moe-display), var(--font-moe-sans), sans-serif;
+    font-weight: 900;
+  }
+
+  .anime-page-title {
+    color: var(--anime-ink);
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-weight: 900;
+    line-height: 1.05;
+  }
+
+  .anime-page-subtitle {
+    margin-top: 0.35rem;
+    max-width: 48rem;
+    color: var(--anime-muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .anime-kicker {
+    display: inline-flex;
+    height: 2rem;
+    align-items: center;
+    gap: 0.5rem;
+    border: 2px solid var(--anime-ink);
+    border-radius: 6px;
+    background: var(--anime-yellow);
+    padding: 0 0.75rem;
+    color: #26223a;
+    box-shadow: 3px 3px 0 var(--anime-pink);
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .anime-action {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 2px solid var(--anime-ink);
+    border-radius: 6px;
+    background: var(--anime-pink);
+    padding: 0.5rem 1rem;
+    color: white;
+    box-shadow: 4px 4px 0 var(--anime-shadow);
+    font-size: 0.875rem;
+    font-weight: 900;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  }
+
+  .anime-action:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 var(--anime-shadow);
+  }
+
+  .anime-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .anime-action-secondary {
+    background: var(--anime-yellow);
+    color: #26223a;
+  }
+
+  .anime-action-ghost {
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--anime-ink);
+    box-shadow: none;
+  }
+
+  .dark .anime-action-ghost {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--anime-ink);
+  }
+
+  .anime-input {
+    border: 2px solid var(--anime-ink);
+    border-radius: 6px;
+    background: rgba(255, 249, 236, 0.9);
+    color: var(--anime-ink);
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .anime-input:focus,
+  .anime-input:focus-within {
+    border-color: var(--anime-pink);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.35);
+  }
+
+  .dark .anime-input {
+    border-color: rgba(125, 211, 252, 0.34);
+    background: rgba(12, 16, 32, 0.82);
+    color: var(--anime-ink);
   }
 }

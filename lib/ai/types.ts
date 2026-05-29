@@ -42,11 +42,13 @@ export interface AiModelInfo {
 }
 
 export type AiChatRole = "user" | "assistant";
+export type AiDeepSeekMode = "default" | "inner_os" | "no_inner_os";
 
 export interface AiChatConversation {
   id: string;
   title: string;
   systemPrompt: string;
+  deepSeekMode: AiDeepSeekMode;
   providerConfigId?: string | null;
   model: string;
   lastMessageAt?: string | null;
@@ -59,6 +61,7 @@ export interface AiChatConversationRecord {
   user_id: string;
   title: string;
   system_prompt: string;
+  deepseek_mode?: AiDeepSeekMode | null;
   provider_config_id?: string | null;
   model: string;
   last_message_at?: string | null;

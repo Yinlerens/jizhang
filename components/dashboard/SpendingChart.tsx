@@ -80,8 +80,8 @@ export default function SpendingChart({ data }: SpendingChartProps) {
     }), [data, primaryColor])
 
     return (
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6">支出趋势 (近7日)</h3>
+        <div className="anime-surface p-5">
+            <h3 className="anime-panel-title mb-5 text-lg">支出趋势 (近7日)</h3>
             <ResponsiveEChart option={option} height={280} />
         </div>
     )

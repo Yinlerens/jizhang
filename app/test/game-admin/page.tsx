@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   UserPlus,
@@ -16,23 +16,45 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 
+interface Player {
+  id: string;
+  username: string;
+  balance: number;
+  created_at?: string;
+}
+
+interface BalanceLog {
+  id: number;
+  amount: number;
+  type: "give" | "revoke";
+  reason: string;
+  created_at: string;
+  original_log_id?: number | null;
+  players?: {
+    username: string;
+  } | null;
+}
+
 export default function GameAdminDemo() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [activeTab, setActiveTab] = useState<"players" | "logs">("players");
-  const [players, setPlayers] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [logs, setLogs] = useState<BalanceLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [newUsername, setNewUsername] = useState("");
 
-  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("");
 
-  const [editingPlayer, setEditingPlayer] = useState<any>(null);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [editUsername, setEditUsername] = useState("");
+  const [playerPendingDelete, setPlayerPendingDelete] = useState<Player | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<BalanceLog | null>(null);
+  const [revokeReason, setRevokeReason] = useState("操作撤回");
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: playersData } = await supabase
       .from("players")
@@ -44,14 +66,18 @@ export default function GameAdminDemo() {
       .select("*, players(username)")
       .order("created_at", { ascending: false });
 
-    setPlayers(playersData || []);
-    setLogs(logsData || []);
+    setPlayers((playersData || []) as Player[]);
+    setLogs((logsData || []) as BalanceLog[]);
     setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const id = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [fetchData]);
 
   const addPlayer = async () => {
     if (!newUsername) return;
@@ -79,10 +105,13 @@ export default function GameAdminDemo() {
   };
 
   const deletePlayer = async (id: string) => {
-    if (!confirm("确定删除该玩家吗？数据将无法恢复。")) return;
     const { error } = await supabase.from("players").delete().eq("id", id);
-    if (error) toast(error.message);
-    else fetchData();
+    if (error) {
+      toast(error.message);
+    } else {
+      setPlayerPendingDelete(null);
+      fetchData();
+    }
   };
 
   const giveMoney = async () => {
@@ -102,17 +131,20 @@ export default function GameAdminDemo() {
     }
   };
 
-  const revokeMoney = async (logId: number) => {
-    const revokeReason = prompt("请输入收回原因：", "操作撤回");
-    if (revokeReason === null) return;
+  const revokeMoney = async () => {
+    if (!revokeTarget) return;
 
     const { error } = await supabase.rpc("admin_revoke_money", {
-      log_entry_id: logId,
-      revoke_reason: revokeReason,
+      log_entry_id: revokeTarget.id,
+      revoke_reason: revokeReason.trim() || "操作撤回",
     });
 
     if (error) toast(error.message);
-    else fetchData();
+    else {
+      setRevokeTarget(null);
+      setRevokeReason("操作撤回");
+      fetchData();
+    }
   };
 
   return (
@@ -247,7 +279,7 @@ export default function GameAdminDemo() {
                               <Plus size={14} /> 发钱
                             </button>
                             <button
-                              onClick={() => deletePlayer(player.id)}
+                              onClick={() => setPlayerPendingDelete(player)}
                               className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                               title="删除玩家"
                             >
@@ -326,7 +358,10 @@ export default function GameAdminDemo() {
                       <td className="px-6 py-5 text-center">
                         {log.type === "give" && !logs.some((l) => l.original_log_id === log.id) && (
                           <button
-                            onClick={() => revokeMoney(log.id)}
+                            onClick={() => {
+                              setRevokeTarget(log);
+                              setRevokeReason("操作撤回");
+                            }}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-[11px] font-black"
                           >
                             <Undo2 size={12} /> 撤回
@@ -352,6 +387,77 @@ export default function GameAdminDemo() {
             </table>
           </div>
         </section>
+      )}
+
+      {/* Delete Player Modal */}
+      {playerPendingDelete && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-gray-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-100 text-red-600">
+                <Trash2 size={22} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-2xl font-black text-gray-800">删除玩家？</h3>
+                <p className="mt-2 break-words text-sm font-bold leading-6 text-gray-500">
+                  {playerPendingDelete.username} 的数据将被移除，操作完成后不可恢复。
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-4 mt-10">
+              <button
+                onClick={() => setPlayerPendingDelete(null)}
+                className="flex-1 px-6 py-4 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 transition-all font-bold"
+              >
+                保留
+              </button>
+              <button
+                onClick={() => deletePlayer(playerPendingDelete.id)}
+                className="flex-1 px-6 py-4 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all font-bold"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revoke Money Modal */}
+      {revokeTarget && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-gray-100 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-2xl font-black mb-8 flex items-center gap-3 text-gray-800">
+              <div className="bg-orange-100 p-2 rounded-xl">
+                <Undo2 className="text-orange-600" size={24} />
+              </div>
+              撤回发放
+            </h3>
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                撤回原因
+              </label>
+              <textarea
+                value={revokeReason}
+                onChange={(event) => setRevokeReason(event.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-orange-100 focus:bg-white focus:border-orange-500 outline-none h-24 transition-all resize-none text-gray-700"
+              />
+            </div>
+            <div className="flex gap-4 mt-10">
+              <button
+                onClick={() => setRevokeTarget(null)}
+                className="flex-1 px-6 py-4 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 transition-all font-bold"
+              >
+                取消
+              </button>
+              <button
+                onClick={revokeMoney}
+                className="flex-1 px-6 py-4 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all font-bold"
+              >
+                确认撤回
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Edit Player Modal */}

@@ -267,17 +267,17 @@ export default function AiSettingsClient() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden rounded-lg border border-rose-200 bg-[#fffaf1] text-[#2d2532] shadow-sm dark:border-cyan-400/20 dark:bg-[#11131f] dark:text-zinc-50">
+    <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden rounded-md border-2 border-[#26223a] bg-[#fff9ec] text-[#26223a] shadow-[8px_8px_0_#7dd3fc] dark:border-cyan-400/25 dark:bg-[#11131f] dark:text-cyan-50 dark:shadow-[8px_8px_0_rgba(244,114,182,0.14)]">
       <AnimeBackdrop />
 
       <div className="relative z-10 space-y-6 p-4 md:p-6">
-        <header className="flex flex-col gap-4 border-b border-rose-200/80 pb-5 dark:border-cyan-400/20 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-4 border-b-2 border-[#26223a] bg-[#fff1f6]/65 p-4 dark:border-cyan-400/20 dark:bg-white/5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex h-8 items-center gap-2 rounded-md border border-cyan-300 bg-cyan-100 px-3 text-xs font-black uppercase text-cyan-900 shadow-[4px_4px_0_#f9a8d4] dark:border-cyan-300/50 dark:bg-cyan-300/10 dark:text-cyan-100">
+            <div className="inline-flex h-8 items-center gap-2 rounded-md border-2 border-[#26223a] bg-cyan-100 px-3 text-xs font-black uppercase text-cyan-900 shadow-[4px_4px_0_#f9a8d4] dark:border-cyan-300/50 dark:bg-cyan-300/10 dark:text-cyan-100">
               <Sparkles size={14} />
               AI Dock
             </div>
-            <h1 className="mt-4 text-3xl font-black text-[#27213c] dark:text-white md:text-4xl">
+            <h1 className="anime-display mt-4 text-4xl font-black text-[#26223a] dark:text-cyan-50 md:text-5xl">
               星糖配置舱
             </h1>
           </div>
@@ -286,7 +286,7 @@ export default function AiSettingsClient() {
             <button
               type="button"
               onClick={startBlankConfig}
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#27213c] bg-white px-4 text-sm font-black text-[#27213c] transition hover:-translate-y-0.5 dark:border-cyan-200 dark:bg-white/5 dark:text-cyan-50"
+              className="inline-flex h-10 items-center gap-2 rounded-md border-2 border-[#26223a] bg-white px-4 text-sm font-black text-[#26223a] transition hover:-translate-y-0.5 dark:border-cyan-200 dark:bg-white/5 dark:text-cyan-50"
             >
               <Pencil size={16} />
               空白新建
@@ -295,7 +295,7 @@ export default function AiSettingsClient() {
               type="button"
               onClick={loadFromCloud}
               disabled={isLoadingCloud}
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#27213c] bg-[#d9f99d] px-4 text-sm font-black text-[#27213c] shadow-[4px_4px_0_#27213c] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-200 dark:bg-lime-300 dark:shadow-[4px_4px_0_#0e7490]"
+              className="inline-flex h-10 items-center gap-2 rounded-md border-2 border-[#26223a] bg-[#d9f99d] px-4 text-sm font-black text-[#26223a] shadow-[4px_4px_0_#26223a] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-200 dark:bg-lime-300 dark:shadow-[4px_4px_0_#0e7490]"
             >
               {isLoadingCloud ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               刷新云端
@@ -304,7 +304,7 @@ export default function AiSettingsClient() {
               type="button"
               onClick={detectModels}
               disabled={isDetecting}
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#27213c] bg-[#ffcf56] px-4 text-sm font-black text-[#27213c] shadow-[4px_4px_0_#27213c] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-200 dark:bg-cyan-300 dark:shadow-[4px_4px_0_#0e7490]"
+              className="inline-flex h-10 items-center gap-2 rounded-md border-2 border-[#26223a] bg-[#ffcf56] px-4 text-sm font-black text-[#26223a] shadow-[4px_4px_0_#26223a] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-200 dark:bg-cyan-300 dark:shadow-[4px_4px_0_#0e7490]"
             >
               {isDetecting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               检测模型
@@ -313,7 +313,7 @@ export default function AiSettingsClient() {
         </header>
 
         <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="rounded-lg border border-[#27213c] bg-[#27213c] p-4 text-white shadow-[6px_6px_0_#ffcf56] dark:border-cyan-300/30 dark:bg-[#0c1020] dark:shadow-[6px_6px_0_rgba(34,211,238,0.2)]">
+          <aside className="rounded-md border-2 border-[#26223a] bg-[#26223a] p-4 text-white shadow-[6px_6px_0_#ffcf56] dark:border-cyan-300/30 dark:bg-[#0c1020] dark:shadow-[6px_6px_0_rgba(34,211,238,0.2)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-black">
@@ -377,7 +377,7 @@ export default function AiSettingsClient() {
           </aside>
 
           <main className="min-w-0 space-y-5">
-            <section className="rounded-lg border border-[#27213c] bg-white/90 p-4 shadow-[6px_6px_0_#f9a8d4] dark:border-cyan-300/30 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(244,114,182,0.16)]">
+            <section className="rounded-md border-2 border-[#26223a] bg-white/90 p-4 shadow-[6px_6px_0_#f9a8d4] dark:border-cyan-300/30 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(244,114,182,0.16)]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="flex items-center gap-2 text-xl font-black text-[#27213c] dark:text-white">
@@ -484,7 +484,7 @@ export default function AiSettingsClient() {
               </div>
             </section>
 
-            <section className="rounded-lg border border-[#27213c] bg-white/90 p-4 shadow-[6px_6px_0_#7dd3fc] dark:border-cyan-300/30 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(14,116,144,0.34)]">
+            <section className="rounded-md border-2 border-[#26223a] bg-white/90 p-4 shadow-[6px_6px_0_#7dd3fc] dark:border-cyan-300/30 dark:bg-white/5 dark:shadow-[6px_6px_0_rgba(14,116,144,0.34)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-black text-[#27213c] dark:text-white">模型列表</h2>
@@ -593,9 +593,13 @@ function StatusPill({ label, value }: { label: string; value: string }) {
 function AnimeBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(14,165,233,0.10)_1px,transparent_1px),linear-gradient(180deg,rgba(244,114,182,0.11)_1px,transparent_1px)] bg-[size:34px_34px]" />
-      <div className="absolute right-0 top-0 h-56 w-56 translate-x-16 -translate-y-10 rotate-12 bg-[repeating-linear-gradient(135deg,rgba(255,207,86,0.42)_0_10px,transparent_10px_20px)]" />
-      <div className="absolute bottom-0 left-0 h-40 w-72 -translate-x-16 translate-y-10 -rotate-6 bg-[repeating-linear-gradient(45deg,rgba(125,211,252,0.28)_0_8px,transparent_8px_16px)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(38,34,58,0.14)_1px,transparent_0)] bg-[size:14px_14px] opacity-70 dark:bg-[radial-gradient(circle_at_1px_1px,rgba(103,232,249,0.16)_1px,transparent_0)]" />
+      <div className="absolute inset-x-[-10%] top-20 h-24 rotate-3 bg-[repeating-linear-gradient(90deg,transparent_0_16px,rgba(125,211,252,0.28)_16px_20px,transparent_20px_40px)]" />
+      <div className="absolute right-0 top-0 h-56 w-64 translate-x-16 -translate-y-10 rotate-12 bg-[repeating-linear-gradient(135deg,rgba(255,207,86,0.56)_0_10px,transparent_10px_20px)]" />
+      <div className="absolute bottom-0 left-0 h-44 w-80 -translate-x-16 translate-y-10 -rotate-6 bg-[repeating-linear-gradient(45deg,rgba(255,122,168,0.34)_0_8px,transparent_8px_16px)]" />
+      <div className="absolute left-8 top-28 hidden -rotate-6 border-2 border-[#26223a] bg-white/75 px-4 py-2 font-mono text-xs font-black uppercase text-[#26223a] shadow-[4px_4px_0_#7dd3fc] dark:border-cyan-200 dark:bg-[#151a2c]/80 dark:text-cyan-50 lg:block">
+        CONFIG READY
+      </div>
     </div>
   );
 }

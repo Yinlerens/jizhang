@@ -15,7 +15,7 @@ export default function MobileNav() {
     const pathname = usePathname()
 
     return (
-        <nav className="flex items-center justify-around bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-2 py-3">
+        <nav className="mx-2 mb-2 flex items-center justify-around rounded-md border-2 border-[#26223a] bg-[#fff9ec]/92 px-2 py-2 shadow-[0_4px_0_#ff7aa8] backdrop-blur-lg dark:border-cyan-300/25 dark:bg-[#151a2c]/92 dark:shadow-[0_4px_0_rgba(103,232,249,0.18)]">
             {tabs.map((tab) => {
                 const isActive = tab.exact
                     ? pathname === tab.href
@@ -26,13 +26,13 @@ export default function MobileNav() {
                     <Link
                         key={tab.href}
                         href={tab.href}
-                        className={`flex flex-col items-center gap-1 transition duration-200 ${isActive
-                                ? 'text-zinc-900 dark:text-zinc-50'
-                                : 'text-zinc-500 dark:text-zinc-400'
+                        className={`flex min-w-14 flex-col items-center gap-1 rounded-md border px-2 py-1.5 transition duration-200 ${isActive
+                                ? 'border-[#26223a] bg-[#ffd657] text-[#26223a] shadow-[2px_2px_0_#26223a] dark:border-cyan-200 dark:bg-cyan-300 dark:text-[#10131f] dark:shadow-none'
+                                : 'border-transparent text-[#6e6172] dark:text-cyan-50/60'
                             }`}
                     >
                         <tab.icon size={24} />
-                        <span className="text-[10px] font-medium">{tab.label}</span>
+                        <span className="text-[10px] font-black">{tab.label}</span>
                     </Link>
                 )
             })}

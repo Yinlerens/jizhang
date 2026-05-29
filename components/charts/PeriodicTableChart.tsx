@@ -406,9 +406,9 @@ export default function PeriodicTableChart({ focusCategory }: PeriodicTableChart
   }, [option]);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="anime-surface relative overflow-hidden">
       {!ready && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 text-sm font-medium text-zinc-500 backdrop-blur-sm dark:bg-zinc-950/80 dark:text-zinc-400">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 text-sm font-black text-[#8f5b72] backdrop-blur-sm dark:bg-[#10131f]/80 dark:text-cyan-100/70">
           加载中...
         </div>
       )}
