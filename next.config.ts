@@ -4,6 +4,11 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextConfig = {
   // 启用 React 编译器（React 19 新特性）
   reactCompiler: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
 
   async rewrites() {
     return [
