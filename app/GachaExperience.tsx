@@ -5,7 +5,12 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { ConfigProvider, Drawer, Tag } from "antd";
 import { toast } from "sonner";
-import { drawGachaPull, type PullGachaActionResult } from "./gacha/actions";
+import {
+  drawGachaPull,
+  syncGachaBackpackAfterPull,
+  type BackpackSyncActionResult,
+  type PullGachaActionResult,
+} from "./gacha/actions";
 import {
   Clock3,
   Crosshair,
@@ -35,18 +40,24 @@ import type {
   Banner,
   BannerPoolEntry,
   GachaItem,
+  PityState,
   PullRecord,
   StoredGachaState,
 } from "@/lib/gacha/types";
 
 type SuccessfulPullResult = Extract<PullGachaActionResult, { ok: true }>;
+type SuccessfulBackpackSyncResult = Extract<BackpackSyncActionResult, { ok: true }>;
 type GatewayPullResultRecord = SuccessfulPullResult["records"][number];
+type BackpackSyncRecord = SuccessfulBackpackSyncResult["history"][number];
 
 export type GachaExperienceProps = {
   banners: Banner[];
   items: GachaItem[];
   dataSource: "supabase";
   initialBalanceMinor?: number;
+  initialHistory?: PullRecord[];
+  initialInventory?: Record<string, number>;
+  initialPityByBannerId?: Record<string, PityState>;
 };
 
 const theme = {
@@ -59,12 +70,22 @@ const theme = {
 
 export default function GachaExperience({
   banners,
+  initialHistory,
   initialBalanceMinor,
+  initialInventory,
+  initialPityByBannerId,
   items,
 }: GachaExperienceProps) {
   const [activeBannerId, setActiveBannerId] = useState(banners[0]?.id ?? "");
   const [state, setState] = useState<StoredGachaState>(() =>
-    withGatewayBalance(createInitialGachaState(banners), initialBalanceMinor),
+    applyGatewayInitialState(
+      withGatewayBalance(createInitialGachaState(banners), initialBalanceMinor),
+      {
+        history: initialHistory,
+        inventory: initialInventory,
+        pityByBannerId: initialPityByBannerId,
+      },
+    ),
   );
   const [storageReady, setStorageReady] = useState(false);
   const [lastPulls, setLastPulls] = useState<PullRecord[]>([]);
@@ -104,13 +125,29 @@ export default function GachaExperience({
       try {
         const stored = window.localStorage.getItem(GACHA_STORAGE_KEY);
         setState(
-          withGatewayBalance(
-            normalizeGachaState(stored ? JSON.parse(stored) : null, banners),
-            initialBalanceMinor,
+          applyGatewayInitialState(
+            withGatewayBalance(
+              normalizeGachaState(stored ? JSON.parse(stored) : null, banners),
+              initialBalanceMinor,
+            ),
+            {
+              history: initialHistory,
+              inventory: initialInventory,
+              pityByBannerId: initialPityByBannerId,
+            },
           ),
         );
       } catch {
-        setState(withGatewayBalance(createInitialGachaState(banners), initialBalanceMinor));
+        setState(
+          applyGatewayInitialState(
+            withGatewayBalance(createInitialGachaState(banners), initialBalanceMinor),
+            {
+              history: initialHistory,
+              inventory: initialInventory,
+              pityByBannerId: initialPityByBannerId,
+            },
+          ),
+        );
       } finally {
         setStorageReady(true);
       }
@@ -120,7 +157,7 @@ export default function GachaExperience({
       cancelled = true;
       window.cancelAnimationFrame(frameId);
     };
-  }, [banners, initialBalanceMinor]);
+  }, [banners, initialBalanceMinor, initialHistory, initialInventory, initialPityByBannerId]);
 
   useEffect(() => {
     if (!storageReady) {
@@ -172,11 +209,24 @@ export default function GachaExperience({
         }),
       );
       toast.success(`共鸣完成，获得 ${records.length} 项结果。`);
+      void syncBackpackAfterPull(result.eventId);
     } catch {
       toast.error("抽取失败，请稍后重试。");
     } finally {
       setPullingCount(null);
     }
+  };
+
+  const syncBackpackAfterPull = async (eventId: string) => {
+    const result = await syncGachaBackpackAfterPull({ eventId });
+    if (!result.ok) {
+      toast.warning("抽卡结果已展示，背包记录稍后刷新。");
+      return;
+    }
+
+    const eventRecords = result.eventRecords.map(mapBackpackSyncRecord);
+    setLastPulls(eventRecords);
+    setState((currentState) => applyBackpackSyncResult(currentState, result));
   };
 
   const clearRecentResults = () => {
@@ -691,6 +741,33 @@ function withGatewayBalance(state: StoredGachaState, balanceMinor: number | unde
   };
 }
 
+function applyGatewayInitialState(
+  state: StoredGachaState,
+  {
+    history,
+    inventory,
+    pityByBannerId,
+  }: {
+    history?: PullRecord[];
+    inventory?: Record<string, number>;
+    pityByBannerId?: Record<string, PityState>;
+  },
+): StoredGachaState {
+  const nextPity = pityByBannerId
+    ? {
+        ...state.pity,
+        ...pityByBannerId,
+      }
+    : state.pity;
+
+  return {
+    ...state,
+    history: history ?? state.history,
+    inventory: inventory ?? state.inventory,
+    pity: nextPity,
+  };
+}
+
 function mapGatewayPullRecord(record: GatewayPullResultRecord, at: string): PullRecord {
   return {
     id: record.id,
@@ -704,6 +781,56 @@ function mapGatewayPullRecord(record: GatewayPullResultRecord, at: string): Pull
     pityAtFive: record.pity_at_five,
     pityAtFour: record.pity_at_four,
     isFeatured: record.is_featured,
+  };
+}
+
+function mapBackpackSyncRecord(record: BackpackSyncRecord): PullRecord {
+  return {
+    id: record.id,
+    itemId: record.item_id,
+    itemName: record.item_name,
+    itemType: record.item_type,
+    rarity: record.rarity,
+    bannerId: record.banner_id,
+    bannerName: record.banner_name,
+    at: record.received_at,
+    pityAtFive: record.pity_at_five,
+    pityAtFour: record.pity_at_four,
+    isFeatured: record.is_featured,
+  };
+}
+
+function mapGatewayPity(pity: SuccessfulBackpackSyncResult["event"]["next_pity"]): PityState {
+  return {
+    sinceFive: Math.max(0, Math.floor(pity.since_five)),
+    sinceFour: Math.max(0, Math.floor(pity.since_four)),
+    guaranteedFeaturedFive: pity.guaranteed_featured_five,
+    guarantees: {},
+  };
+}
+
+function mapSyncedInventory(result: SuccessfulBackpackSyncResult) {
+  return Object.fromEntries(
+    result.inventory.map((item) => [item.item_id, Math.max(0, Math.floor(item.quantity))]),
+  );
+}
+
+function applyBackpackSyncResult(
+  currentState: StoredGachaState,
+  result: SuccessfulBackpackSyncResult,
+): StoredGachaState {
+  const history = result.history.length
+    ? result.history.map(mapBackpackSyncRecord)
+    : result.eventRecords.map(mapBackpackSyncRecord);
+
+  return {
+    ...currentState,
+    history,
+    inventory: mapSyncedInventory(result),
+    pity: {
+      ...currentState.pity,
+      [result.event.banner_id]: mapGatewayPity(result.event.next_pity),
+    },
   };
 }
 

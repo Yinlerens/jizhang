@@ -1,5 +1,12 @@
 import GachaExperience from "./GachaExperience";
 import { getAssetAccount } from "@/lib/gateway/assets";
+import {
+  getBackpackInventory,
+  getBackpackPullRecords,
+  type BackpackInventoryItem,
+  type BackpackPullRecord,
+} from "@/lib/gateway/backpack";
+import { getGachaPity, type GatewayPitySnapshot } from "@/lib/gateway/gacha";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type {
@@ -10,6 +17,8 @@ import type {
   GachaFeaturedRule,
   GachaItem,
   GachaRarityRule,
+  PityState,
+  PullRecord,
 } from "@/lib/gacha/types";
 import type {
   GachaBannerItemRow,
@@ -31,6 +40,12 @@ type Catalog = {
   dataSource: "supabase";
 };
 
+type GatewayInitialState = {
+  history?: PullRecord[];
+  inventory?: Record<string, number>;
+  pityByBannerId?: Record<string, PityState>;
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
@@ -46,16 +61,23 @@ export default async function HomePage() {
     redirect("/login?next=/");
   }
 
-  const [catalog, initialBalanceMinor] = await Promise.all([
-    loadCatalog(supabase),
-    loadAssetBalance(session?.access_token),
+  const accessToken = session?.access_token;
+  const catalogPromise = loadCatalog(supabase);
+  const balancePromise = loadAssetBalance(accessToken);
+  const catalog = await catalogPromise;
+  const [initialBalanceMinor, gatewayState] = await Promise.all([
+    balancePromise,
+    loadGatewayInitialState(accessToken, catalog.banners),
   ]);
 
   return (
     <GachaExperience
       banners={catalog.banners}
       dataSource={catalog.dataSource}
+      initialHistory={gatewayState.history}
       initialBalanceMinor={initialBalanceMinor}
+      initialInventory={gatewayState.inventory}
+      initialPityByBannerId={gatewayState.pityByBannerId}
       items={catalog.items}
     />
   );
@@ -161,6 +183,82 @@ async function loadCatalog(supabase: Awaited<ReturnType<typeof createClient>>): 
   } catch {
     return emptyCatalog();
   }
+}
+
+async function loadGatewayInitialState(
+  accessToken: string | undefined,
+  banners: Banner[],
+): Promise<GatewayInitialState> {
+  if (!accessToken) {
+    return {};
+  }
+
+  const [pityResult, inventoryResult, recordsResult] = await Promise.allSettled([
+    loadPityByBannerId(accessToken, banners),
+    getBackpackInventory({ accessToken, limit: 100 }),
+    getBackpackPullRecords({ accessToken, limit: 100 }),
+  ]);
+
+  return {
+    history:
+      recordsResult.status === "fulfilled"
+        ? recordsResult.value.items.map(mapBackpackPullRecord)
+        : undefined,
+    inventory:
+      inventoryResult.status === "fulfilled"
+        ? mapInventoryQuantities(inventoryResult.value.items)
+        : undefined,
+    pityByBannerId: pityResult.status === "fulfilled" ? pityResult.value : undefined,
+  };
+}
+
+async function loadPityByBannerId(accessToken: string, banners: Banner[]) {
+  if (banners.length === 0) {
+    return {};
+  }
+
+  const results = await Promise.allSettled(
+    banners.map(async (banner) => {
+      const pity = await getGachaPity({ accessToken, bannerId: banner.id });
+      return [banner.id, mapGatewayPity(pity)] as const;
+    }),
+  );
+  const entries = results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function mapGatewayPity(pity: GatewayPitySnapshot): PityState {
+  return {
+    sinceFive: Math.max(0, Math.floor(pity.since_five)),
+    sinceFour: Math.max(0, Math.floor(pity.since_four)),
+    guaranteedFeaturedFive: pity.guaranteed_featured_five,
+    guarantees: {},
+  };
+}
+
+function mapInventoryQuantities(items: BackpackInventoryItem[]) {
+  return Object.fromEntries(
+    items.map((item) => [item.item_id, Math.max(0, Math.floor(item.quantity))]),
+  );
+}
+
+function mapBackpackPullRecord(record: BackpackPullRecord): PullRecord {
+  return {
+    id: record.id,
+    itemId: record.item_id,
+    itemName: record.item_name,
+    itemType: record.item_type,
+    rarity: record.rarity,
+    bannerId: record.banner_id,
+    bannerName: record.banner_name,
+    at: record.received_at,
+    pityAtFive: record.pity_at_five,
+    pityAtFour: record.pity_at_four,
+    isFeatured: record.is_featured,
+  };
 }
 
 function emptyCatalog(): Catalog {

@@ -25,7 +25,7 @@ export type GatewayPullRecord = {
 
 export type PullGachaResponse = {
   event_id: string;
-  banner_version_id: string;
+  banner_version_id: string | null;
   seed: string;
   records: GatewayPullRecord[];
   previous_pity: GatewayPitySnapshot;
@@ -54,4 +54,19 @@ export async function pullGacha({
   });
 
   return (await response.json()) as PullGachaResponse;
+}
+
+export async function getGachaPity({
+  accessToken,
+  bannerId,
+}: {
+  accessToken: string;
+  bannerId: string;
+}) {
+  const params = new URLSearchParams({ banner_id: bannerId });
+  const response = await gatewayFetch(`/api/v1/gacha/me/pity?${params}`, accessToken, {
+    method: "GET",
+  });
+
+  return (await response.json()) as GatewayPitySnapshot;
 }
