@@ -37,15 +37,18 @@ export async function pullGacha({
   accessToken,
   bannerId,
   count,
+  idempotencyKey,
 }: {
   accessToken: string;
   bannerId: string;
   count: 1 | 10;
+  idempotencyKey: string;
 }) {
   const response = await gatewayFetch("/api/v1/gacha/me/pulls", accessToken, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
       banner_id: bannerId,

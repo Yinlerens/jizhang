@@ -1,6 +1,9 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { pullGacha, type GatewayPitySnapshot, type GatewayPullRecord } from "@/lib/gateway/gacha";
+import { GatewayFetchError } from "@/lib/gateway/client";
 import {
   getBackpackInventory,
   getBackpackPullEvent,
@@ -77,10 +80,12 @@ export async function drawGachaPull({
   }
 
   try {
-    const result = await pullGacha({
+    const idempotencyKey = randomUUID();
+    const result = await pullGachaWithRetry({
       accessToken: session.access_token,
       bannerId: normalizedBannerId,
       count,
+      idempotencyKey,
     });
 
     return {
@@ -96,6 +101,39 @@ export async function drawGachaPull({
       message: error instanceof Error ? error.message : "抽取失败，请稍后重试。",
     };
   }
+}
+
+async function pullGachaWithRetry({
+  accessToken,
+  bannerId,
+  count,
+  idempotencyKey,
+}: {
+  accessToken: string;
+  bannerId: string;
+  count: 1 | 10;
+  idempotencyKey: string;
+}) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await pullGacha({
+        accessToken,
+        bannerId,
+        count,
+        idempotencyKey,
+      });
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof GatewayFetchError) || error.code !== "kafka_unavailable") {
+        throw error;
+      }
+      await delay(300);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("抽取失败，请稍后重试。");
 }
 
 export async function syncGachaBackpackAfterPull({
