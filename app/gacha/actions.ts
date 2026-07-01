@@ -1,7 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-
 import { pullGacha, type GatewayPitySnapshot, type GatewayPullRecord } from "@/lib/gateway/gacha";
 import { GatewayFetchError } from "@/lib/gateway/client";
 import {
@@ -25,6 +23,7 @@ export type PullGachaActionResult =
   | {
       ok: false;
       message: string;
+      code?: string;
     };
 
 export type BackpackSyncActionResult =
@@ -43,11 +42,13 @@ export type BackpackSyncActionResult =
 export async function drawGachaPull({
   bannerId,
   count,
+  idempotencyKey,
 }: {
   bannerId: string;
   count: 1 | 10;
+  idempotencyKey: string;
 }): Promise<PullGachaActionResult> {
-  const normalizedBannerId = bannerId.trim();
+  const normalizedBannerId = typeof bannerId === "string" ? bannerId.trim() : "";
   if (!normalizedBannerId || normalizedBannerId.length > 100) {
     return {
       ok: false,
@@ -59,6 +60,16 @@ export async function drawGachaPull({
     return {
       ok: false,
       message: "只能执行 1 抽或 10 抽。",
+    };
+  }
+
+  const normalizedIdempotencyKey =
+    typeof idempotencyKey === "string" ? idempotencyKey.trim() : "";
+  if (!isUuidLike(normalizedIdempotencyKey)) {
+    return {
+      ok: false,
+      code: "invalid_idempotency_key",
+      message: "抽卡请求标识不合法，请刷新页面后重试。",
     };
   }
 
@@ -80,12 +91,11 @@ export async function drawGachaPull({
   }
 
   try {
-    const idempotencyKey = randomUUID();
     const result = await pullGachaWithRetry({
       accessToken: session.access_token,
       bannerId: normalizedBannerId,
       count,
-      idempotencyKey,
+      idempotencyKey: normalizedIdempotencyKey,
     });
 
     return {
@@ -96,6 +106,17 @@ export async function drawGachaPull({
       stateVersion: result.state_version,
     };
   } catch (error) {
+    if (error instanceof GatewayFetchError) {
+      return {
+        ok: false,
+        code: error.code,
+        message:
+          error.code === "kafka_unavailable"
+            ? "抽卡结果已生成但暂未同步，请再次点击同一卡池同一抽数恢复结果。"
+            : error.message,
+      };
+    }
+
     return {
       ok: false,
       message: error instanceof Error ? error.message : "抽取失败，请稍后重试。",

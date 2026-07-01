@@ -50,6 +50,13 @@ type SuccessfulBackpackSyncResult = Extract<BackpackSyncActionResult, { ok: true
 type GatewayPullResultRecord = SuccessfulPullResult["records"][number];
 type BackpackSyncRecord = SuccessfulBackpackSyncResult["history"][number];
 
+type PendingGachaPull = {
+  bannerId: string;
+  count: 1 | 10;
+  idempotencyKey: string;
+  createdAt: number;
+};
+
 export type GachaExperienceProps = {
   banners: Banner[];
   items: GachaItem[];
@@ -59,6 +66,9 @@ export type GachaExperienceProps = {
   initialInventory?: Record<string, number>;
   initialPityByBannerId?: Record<string, PityState>;
 };
+
+const GACHA_PENDING_PULL_KEY = "wuwa:gacha:pending-pull:v1";
+const GACHA_PENDING_PULL_TTL_MS = 24 * 60 * 60 * 1000;
 
 const theme = {
   token: {
@@ -88,6 +98,7 @@ export default function GachaExperience({
     ),
   );
   const [storageReady, setStorageReady] = useState(false);
+  const [pendingPull, setPendingPull] = useState<PendingGachaPull | null>(null);
   const [lastPulls, setLastPulls] = useState<PullRecord[]>([]);
   const [pullingCount, setPullingCount] = useState<1 | 10 | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -109,6 +120,8 @@ export default function GachaExperience({
   );
   const pullCapacity = getPullCapacity(state);
   const isPulling = pullingCount !== null;
+  const activePendingPull =
+    pendingPull && activeBanner && pendingPull.bannerId === activeBanner.id ? pendingPull : null;
   const featuredFourEntries =
     activeBanner?.poolEntries.filter((entry) => entry.featuredGroup === "four_up").slice(0, 4) ??
     [];
@@ -121,6 +134,8 @@ export default function GachaExperience({
       if (cancelled) {
         return;
       }
+
+      setPendingPull(readPendingGachaPull());
 
       try {
         const stored = window.localStorage.getItem(GACHA_STORAGE_KEY);
@@ -164,7 +179,11 @@ export default function GachaExperience({
       return;
     }
 
-    window.localStorage.setItem(GACHA_STORAGE_KEY, JSON.stringify(state));
+    try {
+      window.localStorage.setItem(GACHA_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Gateway state remains authoritative if browser storage is unavailable.
+    }
   }, [state, storageReady]);
 
   const pull = async (count: 1 | 10) => {
@@ -172,30 +191,70 @@ export default function GachaExperience({
       return;
     }
 
-    if (!hasDrawableConfig) {
+    const bannerId = activeBanner.id;
+    const storedPendingPull = readPendingGachaPull();
+    const pendingPullSnapshot = storedPendingPull ?? normalizePendingGachaPull(pendingPull);
+    setPendingPull(pendingPullSnapshot);
+
+    const isRecoveringPendingPull =
+      pendingPullSnapshot?.bannerId === bannerId && pendingPullSnapshot.count === count;
+
+    if (pendingPullSnapshot && !isRecoveringPendingPull) {
+      const pendingBanner = banners.find((banner) => banner.id === pendingPullSnapshot.bannerId);
+      toast.warning(
+        `有一笔 ${pendingBanner?.name ?? "其他卡池"} ${pendingPullSnapshot.count} 抽结果仍在同步，请先切回恢复。`,
+      );
+      return;
+    }
+
+    if (!isRecoveringPendingPull && !hasDrawableConfig) {
       toast.warning("当前卡池配置不完整，暂不能抽取。");
       return;
     }
 
-    if (pullCapacity < count) {
+    if (!isRecoveringPendingPull && pullCapacity < count) {
       toast.warning("星声不足，请先充值。");
       return;
     }
 
-    const bannerId = activeBanner.id;
+    const pullOperation =
+      pendingPullSnapshot ??
+      createPendingGachaPull({
+        bannerId,
+        count,
+      });
+
+    savePendingGachaPull(pullOperation);
+    setPendingPull(pullOperation);
     setPullingCount(count);
 
     try {
       const result = await drawGachaPull({
         bannerId,
         count,
+        idempotencyKey: pullOperation.idempotencyKey,
       });
 
       if (!result.ok) {
+        if (result.code === "kafka_unavailable") {
+          savePendingGachaPull(pullOperation);
+          setPendingPull(pullOperation);
+          toast.warning(result.message);
+          return;
+        }
+
+        clearPendingGachaPull(pullOperation.idempotencyKey);
+        setPendingPull((current) =>
+          current?.idempotencyKey === pullOperation.idempotencyKey ? null : current,
+        );
         toast.error(result.message);
         return;
       }
 
+      clearPendingGachaPull(pullOperation.idempotencyKey);
+      setPendingPull((current) =>
+        current?.idempotencyKey === pullOperation.idempotencyKey ? null : current,
+      );
       const pulledAt = new Date().toISOString();
       const records = result.records.map((record) => mapGatewayPullRecord(record, pulledAt));
       setLastPulls(records);
@@ -211,7 +270,9 @@ export default function GachaExperience({
       toast.success(`共鸣完成，获得 ${records.length} 项结果。`);
       void syncBackpackAfterPull(result.eventId);
     } catch {
-      toast.error("抽取失败，请稍后重试。");
+      savePendingGachaPull(pullOperation);
+      setPendingPull(pullOperation);
+      toast.warning("抽卡请求状态未知，请再次点击同一卡池同一抽数确认结果。");
     } finally {
       setPullingCount(null);
     }
@@ -460,18 +521,24 @@ export default function GachaExperience({
 
                 <div className="w-full max-w-[720px]">
                   <div className="grid grid-cols-2 gap-3 lg:gap-4">
-                  <PullButton
-                    count={1}
-                    disabled={isPulling || !hasDrawableConfig || pullCapacity < 1}
-                    onClick={() => void pull(1)}
-                    pending={pullingCount === 1}
-                  />
-                  <PullButton
-                    count={10}
-                    disabled={isPulling || !hasDrawableConfig || pullCapacity < 10}
-                    onClick={() => void pull(10)}
-                    pending={pullingCount === 10}
-                  />
+                    <PullButton
+                      count={1}
+                      disabled={
+                        isPulling || (!pendingPull && (!hasDrawableConfig || pullCapacity < 1))
+                      }
+                      onClick={() => void pull(1)}
+                      pending={pullingCount === 1}
+                      recoverable={activePendingPull?.count === 1}
+                    />
+                    <PullButton
+                      count={10}
+                      disabled={
+                        isPulling || (!pendingPull && (!hasDrawableConfig || pullCapacity < 10))
+                      }
+                      onClick={() => void pull(10)}
+                      pending={pullingCount === 10}
+                      recoverable={activePendingPull?.count === 10}
+                    />
                   </div>
                 </div>
               </div>
@@ -624,11 +691,13 @@ function PullButton({
   disabled,
   onClick,
   pending,
+  recoverable,
 }: {
   count: 1 | 10;
   disabled: boolean;
   onClick: () => void;
   pending: boolean;
+  recoverable: boolean;
 }) {
   return (
     <button
@@ -641,7 +710,7 @@ function PullButton({
         <span className="flex items-center gap-1 text-sm font-medium lg:gap-2 lg:text-lg">
           <Gem size={24} />× {count}
         </span>
-        <span>{pending ? "共鸣中" : `共鸣${count}次`}</span>
+        <span>{pending ? "同步中" : recoverable ? "恢复结果" : `共鸣${count}次`}</span>
       </div>
     </button>
   );
@@ -711,6 +780,149 @@ function formatPpm(value?: number) {
   }
 
   return `${(value / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 3 })}%`;
+}
+
+function readPendingGachaPull() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(GACHA_PENDING_PULL_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const pendingPull = normalizePendingGachaPull(JSON.parse(rawValue));
+    if (!pendingPull) {
+      window.localStorage.removeItem(GACHA_PENDING_PULL_KEY);
+    }
+    return pendingPull;
+  } catch {
+    return null;
+  }
+}
+
+function savePendingGachaPull(pendingPull: PendingGachaPull) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      GACHA_PENDING_PULL_KEY,
+      JSON.stringify({
+        bannerId: pendingPull.bannerId,
+        count: pendingPull.count,
+        idempotencyKey: pendingPull.idempotencyKey,
+        createdAt: pendingPull.createdAt,
+      }),
+    );
+  } catch {
+    // Recovery remains available in memory for the current page session.
+  }
+}
+
+function clearPendingGachaPull(idempotencyKey: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const pendingPull = readPendingGachaPull();
+    if (!pendingPull || pendingPull.idempotencyKey === idempotencyKey) {
+      window.localStorage.removeItem(GACHA_PENDING_PULL_KEY);
+    }
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+function normalizePendingGachaPull(value: unknown): PendingGachaPull | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const pendingPull = value as Record<string, unknown>;
+  const bannerId = typeof pendingPull.bannerId === "string" ? pendingPull.bannerId.trim() : "";
+  const count = pendingPull.count;
+  const idempotencyKey =
+    typeof pendingPull.idempotencyKey === "string" ? pendingPull.idempotencyKey.trim() : "";
+  const createdAt = pendingPull.createdAt;
+
+  if (!bannerId || bannerId.length > 100) {
+    return null;
+  }
+
+  if (count !== 1 && count !== 10) {
+    return null;
+  }
+
+  if (!isUuidLike(idempotencyKey)) {
+    return null;
+  }
+
+  if (typeof createdAt !== "number" || !Number.isFinite(createdAt)) {
+    return null;
+  }
+
+  if (Date.now() - createdAt > GACHA_PENDING_PULL_TTL_MS) {
+    return null;
+  }
+
+  return {
+    bannerId,
+    count,
+    idempotencyKey,
+    createdAt,
+  };
+}
+
+function createPendingGachaPull({
+  bannerId,
+  count,
+}: {
+  bannerId: string;
+  count: 1 | 10;
+}): PendingGachaPull {
+  return {
+    bannerId,
+    count,
+    idempotencyKey: createPullIdempotencyKey(),
+    createdAt: Date.now(),
+  };
+}
+
+function createPullIdempotencyKey() {
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.randomUUID) {
+    return browserCrypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (browserCrypto?.getRandomValues) {
+    browserCrypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-");
+}
+
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function backgroundImageStyle(
