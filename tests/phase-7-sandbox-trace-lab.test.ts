@@ -8,6 +8,7 @@ import {
   locateGachaFailure,
   reduceGachaTrace,
 } from "../lib/trace/gacha-run.ts";
+import { toGachaTraceAuditSnapshot } from "../lib/trace/gacha-audit.ts";
 
 test("models the complete north-south and east-west gacha path", () => {
   assert.deepEqual(GACHA_TRACE_NODE_ORDER, [
@@ -105,3 +106,34 @@ test("marks the failed node and skips work that cannot run afterward", () => {
   assert.match(failed.summary, /Kafka/);
 });
 
+test("converts gateway audit details without exposing authentication headers", () => {
+  const snapshot = toGachaTraceAuditSnapshot({
+    request_id: "request-3",
+    started_at: "2026-07-24T03:00:00.000Z",
+    finished_at: "2026-07-24T03:00:00.125Z",
+    duration_ms: 125,
+    upstream_url: "http://gacha-engine-service/v1/me/pulls",
+    response_status: 200,
+    error_code: null,
+    error_message: null,
+    request_body_json: { banner_id: "limited-character-1", count: 10 },
+    response_body_json: { event_id: "event-3" },
+    request_headers: { authorization: ["Bearer secret"] },
+    response_headers: { "x-internal-token": ["secret"] },
+  });
+
+  assert.deepEqual(snapshot, {
+    requestId: "request-3",
+    startedAt: "2026-07-24T03:00:00.000Z",
+    finishedAt: "2026-07-24T03:00:00.125Z",
+    durationMs: 125,
+    upstreamUrl: "http://gacha-engine-service/v1/me/pulls",
+    responseStatus: 200,
+    errorCode: null,
+    errorMessage: null,
+    requestBody: { banner_id: "limited-character-1", count: 10 },
+    responseBody: { event_id: "event-3" },
+  });
+  assert.equal("requestHeaders" in snapshot, false);
+  assert.equal("responseHeaders" in snapshot, false);
+});
