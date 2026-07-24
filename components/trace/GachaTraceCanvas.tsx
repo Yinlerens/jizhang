@@ -43,6 +43,7 @@ type TraceNodeData = {
   nodeId: GachaTraceNodeId;
   snapshot: TraceNodeSnapshot;
   layout: "wide" | "compact";
+  replayActive: boolean;
   onSelect: (nodeId: GachaTraceNodeId) => void;
 };
 
@@ -50,6 +51,9 @@ type TraceFlowNode = Node<TraceNodeData, "trace-node">;
 type PacketEdgeData = {
   state: "idle" | "active" | "success" | "error" | "skipped";
   traffic: TraceTraffic;
+  replayActive: boolean;
+  packetMoving: boolean;
+  packetDurationMs: number;
 };
 type PacketFlowEdge = Edge<PacketEdgeData, "packet">;
 
@@ -99,10 +103,18 @@ export default function GachaTraceCanvas({
   run,
   selectedNodeId,
   onSelectNode,
+  replayEdgeId = null,
+  replayNodeId = null,
+  replayPlaying = false,
+  replayDurationMs = 900,
 }: {
   run: GachaTraceRun;
   selectedNodeId: GachaTraceNodeId;
   onSelectNode: (nodeId: GachaTraceNodeId) => void;
+  replayEdgeId?: string | null;
+  replayNodeId?: GachaTraceNodeId | null;
+  replayPlaying?: boolean;
+  replayDurationMs?: number;
 }) {
   const isCompact = useCompactLayout();
   const layout = isCompact ? "compact" : "wide";
@@ -115,16 +127,17 @@ export default function GachaTraceCanvas({
         position: positions[definition.id],
         data: {
           nodeId: definition.id,
-          snapshot: run.nodes[definition.id],
-          layout,
-          onSelect: onSelectNode,
+           snapshot: run.nodes[definition.id],
+           layout,
+           replayActive: definition.id === replayNodeId,
+           onSelect: onSelectNode,
         },
         selected: definition.id === selectedNodeId,
         draggable: false,
         connectable: false,
         focusable: false,
       })),
-    [layout, onSelectNode, positions, run.nodes, selectedNodeId],
+    [layout, onSelectNode, positions, replayNodeId, run.nodes, selectedNodeId],
   );
 
   const edges = useMemo<PacketFlowEdge[]>(
@@ -132,7 +145,8 @@ export default function GachaTraceCanvas({
       GACHA_TRACE_EDGES.map((edge) => {
         const source = run.nodes[edge.source];
         const target = run.nodes[edge.target];
-        const state = edgeState(source, target);
+        const replayActive = edge.id === replayEdgeId;
+        const state = replayActive ? "active" : edgeState(source, target);
         const color = edgeColor(state, edge.traffic);
         const isAsyncBranch = edge.id === "gacha-kafka";
 
@@ -141,7 +155,13 @@ export default function GachaTraceCanvas({
           type: "packet",
           sourceHandle: isAsyncBranch ? "async-source" : "default-source",
           targetHandle: isAsyncBranch ? "async-target" : "default-target",
-          data: { state, traffic: edge.traffic },
+          data: {
+            state,
+            traffic: edge.traffic,
+            replayActive,
+            packetMoving: replayActive ? replayPlaying : state === "active",
+            packetDurationMs: replayActive ? replayDurationMs : 1_150,
+          },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 14,
@@ -151,7 +171,7 @@ export default function GachaTraceCanvas({
           style: { stroke: color, strokeWidth: state === "active" ? 2.4 : 1.7 },
         };
       }),
-    [run.nodes],
+    [replayDurationMs, replayEdgeId, replayPlaying, run.nodes],
   );
 
   return (
@@ -220,10 +240,15 @@ function TraceNode({ data, selected }: NodeProps<TraceFlowNode>) {
         onClick={() => data.onSelect(data.nodeId)}
         onFocus={() => data.onSelect(data.nodeId)}
         className={`block min-h-[84px] w-[160px] appearance-none border bg-white px-3 py-2.5 text-left shadow-[0_5px_18px_rgba(25,43,34,0.08)] transition-[border-color,box-shadow,opacity] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#287f92] ${tone.shell} ${
-          selected ? "ring-2 ring-[#162a21]/20" : ""
+          data.replayActive
+            ? "ring-2 ring-[#287f92] shadow-[0_8px_28px_rgba(40,127,146,0.24)]"
+            : selected
+              ? "ring-2 ring-[#162a21]/20"
+              : ""
         }`}
         data-testid={`trace-node-${data.nodeId}`}
         data-node-status={snapshot.status}
+        data-replay-active={data.replayActive || undefined}
         aria-label={`${definition.label}，${definition.role}，${statusLabel(snapshot.status)}`}
         aria-pressed={selected}
       >
@@ -348,6 +373,9 @@ function PacketEdge({
   const state = data?.state ?? "idle";
   const traffic = data?.traffic ?? "east-west";
   const color = edgeColor(state, traffic);
+  const replayActive = data?.replayActive ?? false;
+  const packetMoving = data?.packetMoving ?? state === "active";
+  const packetDurationMs = data?.packetDurationMs ?? 1_150;
 
   return (
     <>
@@ -360,9 +388,17 @@ function PacketEdge({
         strokeDasharray={state === "skipped" || state === "idle" ? "5 6" : undefined}
       />
       {state === "active" ? (
-        <circle r="4" fill={color} color={color} className={styles.packet}>
-          <animateMotion dur="1.15s" repeatCount="indefinite" path={edgePath} />
-        </circle>
+        packetMoving ? (
+          <circle r="4.5" fill={color} color={color} className={styles.packet}>
+            <animateMotion
+              dur={`${packetDurationMs}ms`}
+              repeatCount={replayActive ? "1" : "indefinite"}
+              path={edgePath}
+            />
+          </circle>
+        ) : (
+          <circle r="4.5" cx={labelX} cy={labelY} fill={color} color={color} className={styles.packet} />
+        )
       ) : null}
       <EdgeLabelRenderer>
         <div className={styles.edgeLabel} style={{ left: labelX, top: labelY }}>

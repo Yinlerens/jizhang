@@ -36,6 +36,7 @@ export type PullGachaActionResult =
 export type BackpackSyncActionResult =
   | {
       ok: true;
+      state: "success";
       event: BackpackPullEvent;
       eventRecords: BackpackPullRecord[];
       history: BackpackPullRecord[];
@@ -43,6 +44,17 @@ export type BackpackSyncActionResult =
     }
   | {
       ok: false;
+      state: "pending";
+      code: "pull_event_pending";
+      attempts: number;
+      retryAfterMs: number;
+      message: string;
+    }
+  | {
+      ok: false;
+      state: "error";
+      code: string;
+      httpStatus?: number;
       message: string;
     };
 
@@ -232,6 +244,8 @@ export async function syncGachaBackpackAfterPull({
   if (!isUuidLike(normalizedEventId)) {
     return {
       ok: false,
+      state: "error",
+      code: "invalid_event_id",
       message: "抽卡事件 ID 不合法，请刷新页面后重试。",
     };
   }
@@ -244,12 +258,26 @@ export async function syncGachaBackpackAfterPull({
   if (!session?.access_token) {
     return {
       ok: false,
+      state: "error",
+      code: "next_auth_missing",
       message: "登录状态已失效，请重新登录。",
     };
   }
 
   try {
-    const detail = await waitForPullEvent(session.access_token, normalizedEventId);
+    const lookup = await waitForPullEvent(session.access_token, normalizedEventId);
+    if (lookup.state === "pending") {
+      return {
+        ok: false,
+        state: "pending",
+        code: "pull_event_pending",
+        attempts: lookup.attempts,
+        retryAfterMs: lookup.retryAfterMs,
+        message: "Kafka 事件已发布，但 Backpack 尚未消费。可稍后重新检查本次事件。",
+      };
+    }
+
+    const detail = lookup.detail;
     const [inventory, history] = await Promise.all([
       getBackpackInventory({ accessToken: session.access_token, limit: 100 }),
       getBackpackPullRecords({ accessToken: session.access_token, limit: 100 }),
@@ -257,6 +285,7 @@ export async function syncGachaBackpackAfterPull({
 
     return {
       ok: true,
+      state: "success",
       event: detail.event,
       eventRecords: detail.records,
       history: history.items,
@@ -265,31 +294,42 @@ export async function syncGachaBackpackAfterPull({
   } catch (error) {
     return {
       ok: false,
+      state: "error",
+      code: error instanceof GatewayFetchError ? error.code ?? "backpack_sync_failed" : "backpack_sync_failed",
+      httpStatus: error instanceof GatewayFetchError ? error.status : undefined,
       message: error instanceof Error ? error.message : "背包同步失败，请稍后刷新。",
     };
   }
 }
 
 async function waitForPullEvent(accessToken: string, eventId: string) {
-  let lastError: unknown;
+  const retryDelaysMs = [200, 350, 600, 900, 1_300] as const;
+  const maxAttempts = retryDelaysMs.length + 1;
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await getBackpackPullEvent({ accessToken, eventId });
+      const detail = await getBackpackPullEvent({ accessToken, eventId });
+      return { state: "success" as const, detail, attempts: attempt };
     } catch (error) {
-      lastError = error;
       if (!isRetryablePullEventError(error)) {
         throw error;
       }
-      await delay(350);
+      if (attempt === maxAttempts) {
+        return {
+          state: "pending" as const,
+          attempts: attempt,
+          retryAfterMs: 3_000,
+        };
+      }
+      await delay(retryDelaysMs[attempt - 1]);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("背包事件尚未同步，请稍后刷新。");
+  return { state: "pending" as const, attempts: maxAttempts, retryAfterMs: 3_000 };
 }
 
 function isRetryablePullEventError(error: unknown) {
-  return error instanceof Error && error.message.toLowerCase().includes("not found");
+  return error instanceof GatewayFetchError && error.status === 404;
 }
 
 function delay(ms: number) {

@@ -8,15 +8,18 @@ import {
   type GachaTraceNodeId,
   type GachaTraceRun,
 } from "@/lib/trace/gacha-run";
+import type { GachaReplayFrame } from "@/lib/trace/gacha-replay";
 
 type InspectorTab = "overview" | "request" | "response";
 
 export default function TraceNodeInspector({
   run,
   nodeId,
+  replayFrame = null,
 }: {
   run: GachaTraceRun;
   nodeId: GachaTraceNodeId;
+  replayFrame?: GachaReplayFrame | null;
 }) {
   const [tab, setTab] = useState<InspectorTab>("overview");
   const [copied, setCopied] = useState(false);
@@ -87,14 +90,40 @@ export default function TraceNodeInspector({
             </section>
 
             {node.errorCode || node.errorMessage ? (
-              <section className="border-l-2 border-[#d4484e] bg-[#fff3f3] px-3 py-2.5">
-                <Label>错误</Label>
-                <div className="mt-1 font-mono text-[10px] font-bold text-[#b93138]">
+              <section
+                className={`border-l-2 px-3 py-2.5 ${
+                  node.status === "error"
+                    ? "border-[#d4484e] bg-[#fff3f3]"
+                    : "border-[#d69432] bg-[#fff8e9]"
+                }`}
+              >
+                <Label>{node.status === "error" ? "错误" : "等待原因"}</Label>
+                <div
+                  className={`mt-1 font-mono text-[10px] font-bold ${
+                    node.status === "error" ? "text-[#b93138]" : "text-[#8f5b16]"
+                  }`}
+                >
                   {node.errorCode ?? "unknown_error"}
                 </div>
-                <p className="mt-1 text-xs font-semibold leading-5 text-[#7f3b3f]">
+                <p
+                  className={`mt-1 text-xs font-semibold leading-5 ${
+                    node.status === "error" ? "text-[#7f3b3f]" : "text-[#795b2d]"
+                  }`}
+                >
                   {node.errorMessage}
                 </p>
+              </section>
+            ) : null}
+
+            {replayFrame && replayFrame.targetNodeId === nodeId ? (
+              <section className="border-t border-[#e2e8e5] pt-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <Label>当前重放数据包</Label>
+                  <span className="font-mono text-[8px] font-black text-[#718078]">
+                    {replayFrame.index + 1}
+                  </span>
+                </div>
+                <JsonPanel value={replayFrame.packet} emptyMessage="本帧没有可用数据包" />
               </section>
             ) : null}
 
@@ -118,7 +147,14 @@ export default function TraceNodeInspector({
             </section>
           </div>
         ) : (
-          <JsonPanel value={tab === "request" ? node.request : node.response} />
+          <JsonPanel
+            value={tab === "request" ? node.request : node.response}
+            emptyMessage={
+              run.status === "idle"
+                ? "发起抽卡后，这里会显示本次调用的数据包"
+                : `本节点尚未产生${tab === "request" ? "请求" : "响应"}数据包`
+            }
+          />
         )}
       </div>
 
@@ -162,11 +198,11 @@ function KeyValue({ label, value, mono = false }: { label: string; value: string
   );
 }
 
-function JsonPanel({ value }: { value: unknown | null }) {
+function JsonPanel({ value, emptyMessage }: { value: unknown | null; emptyMessage: string }) {
   if (value === null) {
     return (
       <div className="flex min-h-36 items-center justify-center border border-dashed border-[#ced8d3] text-[10px] font-bold text-[#89958f]">
-        暂无可展示数据
+        {emptyMessage}
       </div>
     );
   }
@@ -228,4 +264,3 @@ function trafficLabel(traffic: (typeof GACHA_TRACE_NODE_DEFINITIONS)[GachaTraceN
     traffic
   ];
 }
-

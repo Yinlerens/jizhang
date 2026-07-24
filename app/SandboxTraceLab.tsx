@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   Network,
   RadioTower,
+  RefreshCw,
   RotateCcw,
   WalletCards,
 } from "lucide-react";
@@ -19,8 +20,10 @@ import {
   drawGachaPull,
   loadGachaTraceAudit,
   syncGachaBackpackAfterPull,
+  type BackpackSyncActionResult,
 } from "./gacha/actions";
 import TraceNodeInspector from "@/components/trace/TraceNodeInspector";
+import TraceReplayControls from "@/components/trace/TraceReplayControls";
 import TraceWaterfall from "@/components/trace/TraceWaterfall";
 import { ASTRITE_PER_PULL } from "@/lib/gacha/simulator";
 import type { Banner, GachaItem, PityState, PullRecord } from "@/lib/gacha/types";
@@ -31,6 +34,7 @@ import {
   type GachaTraceNodeId,
   type GachaTraceRun,
 } from "@/lib/trace/gacha-run";
+import { buildGachaReplayFrames } from "@/lib/trace/gacha-replay";
 
 const GachaTraceCanvas = dynamic(() => import("@/components/trace/GachaTraceCanvas"), {
   ssr: false,
@@ -75,6 +79,7 @@ export default function SandboxTraceLab({
   const [activeBannerId, setActiveBannerId] = useState(banners[0]?.id ?? "");
   const [pullCount, setPullCount] = useState<1 | 10>(10);
   const [isPulling, setIsPulling] = useState(false);
+  const [isCheckingBackpack, setIsCheckingBackpack] = useState(false);
   const [balanceMinor, setBalanceMinor] = useState(initialBalanceMinor);
   const [pendingOperation, setPendingOperation] = useState<PendingOperation | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<GachaTraceNodeId>("gateway");
@@ -89,6 +94,9 @@ export default function SandboxTraceLab({
       startedAt: 0,
     }),
   );
+  const [replayFrameIndex, setReplayFrameIndex] = useState(-1);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1);
 
   const activeBanner = useMemo(
     () => banners.find((banner) => banner.id === activeBannerId) ?? banners[0],
@@ -107,7 +115,14 @@ export default function SandboxTraceLab({
   const canPull =
     Boolean(activeBanner) &&
     !isPulling &&
+    !isCheckingBackpack &&
     (!insufficientBalance || Boolean(recoverableOperation));
+  const replayFrames = useMemo(
+    () => (run.status === "idle" || run.status === "running" ? [] : buildGachaReplayFrames(run)),
+    [run],
+  );
+  const activeReplayFrame = replayFrameIndex >= 0 ? replayFrames[replayFrameIndex] ?? null : null;
+  const replayDurationMs = Math.round(900 / replaySpeed);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +137,127 @@ export default function SandboxTraceLab({
       window.cancelAnimationFrame(frameId);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isReplayPlaying || replayFrameIndex < 0 || replayFrames.length === 0) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      if (replayFrameIndex >= replayFrames.length - 1) {
+        setIsReplayPlaying(false);
+        return;
+      }
+      setReplayFrameIndex(replayFrameIndex + 1);
+    }, replayDurationMs);
+
+    return () => window.clearTimeout(timerId);
+  }, [isReplayPlaying, replayDurationMs, replayFrameIndex, replayFrames.length]);
+
+  const replayTargetNodeId = activeReplayFrame?.targetNodeId;
+  useEffect(() => {
+    if (!replayTargetNodeId) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => setSelectedNodeId(replayTargetNodeId));
+    return () => window.cancelAnimationFrame(frameId);
+  }, [replayTargetNodeId]);
+
+  const checkBackpack = async (runId: string, eventId: string, manual = false) => {
+    if (isCheckingBackpack) {
+      return;
+    }
+
+    setIsCheckingBackpack(true);
+    try {
+      const backpack = await syncGachaBackpackAfterPull({ eventId });
+      setRun((current) => {
+        if (current.runId !== runId) {
+          return current;
+        }
+
+        if (backpack.ok) {
+          return reduceGachaTrace(current, {
+            type: "backpack_succeeded",
+            at: currentTimestamp(),
+            result: mapBackpackTraceResult(backpack),
+          });
+        }
+        if (backpack.state === "pending") {
+          return reduceGachaTrace(current, {
+            type: "backpack_pending",
+            at: currentTimestamp(),
+            attempts: backpack.attempts,
+            retryAfterMs: backpack.retryAfterMs,
+            message: backpack.message,
+          });
+        }
+        return reduceGachaTrace(current, {
+          type: "backpack_failed",
+          at: currentTimestamp(),
+          code: backpack.code,
+          httpStatus: backpack.httpStatus,
+          message: backpack.message,
+        });
+      });
+
+      if (backpack.ok) {
+        setSelectedNodeId("backpack-db");
+        if (manual) {
+          toast.success("Backpack 已消费事件，背包与抽卡记录已确认。");
+        }
+      } else if (backpack.state === "pending") {
+        setSelectedNodeId("backpack");
+        toast.warning(backpack.message);
+      } else {
+        setSelectedNodeId("backpack");
+        toast.error(backpack.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Backpack 检查失败，请稍后重试。";
+      setRun((current) =>
+        current.runId === runId
+          ? reduceGachaTrace(current, {
+              type: "backpack_failed",
+              at: currentTimestamp(),
+              code: "backpack_sync_failed",
+              message,
+            })
+          : current,
+      );
+      setSelectedNodeId("backpack");
+      toast.error(message);
+    } finally {
+      setIsCheckingBackpack(false);
+    }
+  };
+
+  const toggleReplay = () => {
+    if (!replayFrames.length) {
+      return;
+    }
+    if (isReplayPlaying) {
+      setIsReplayPlaying(false);
+      return;
+    }
+    if (replayFrameIndex < 0 || replayFrameIndex >= replayFrames.length - 1) {
+      setReplayFrameIndex(0);
+    }
+    setIsReplayPlaying(true);
+  };
+
+  const restartReplay = () => {
+    if (!replayFrames.length) {
+      return;
+    }
+    setReplayFrameIndex(0);
+    setIsReplayPlaying(true);
+  };
+
+  const seekReplay = (index: number) => {
+    setIsReplayPlaying(false);
+    setReplayFrameIndex(index);
+  };
 
   const executePull = async () => {
     if (!activeBanner || isPulling) {
@@ -160,11 +296,18 @@ export default function SandboxTraceLab({
         count: pullCount,
         startedAt,
       }),
-      { type: "request_started", at: startedAt },
+      {
+        type: "request_started",
+        at: startedAt,
+        requestId,
+        idempotencyKey: operation.idempotencyKey,
+      },
     );
 
     savePendingOperation(operation);
     setPendingOperation(operation);
+    setReplayFrameIndex(-1);
+    setIsReplayPlaying(false);
     setRun(initialRun);
     setSelectedNodeId("next");
     setIsPulling(true);
@@ -205,6 +348,11 @@ export default function SandboxTraceLab({
         at: completedAt,
         requestId: result.requestId,
         eventId: result.eventId,
+        result: {
+          stateVersion: result.stateVersion,
+          nextPity: result.nextPity,
+          records: result.records.map(mapGatewayTraceRecord),
+        },
       });
       setRun(pulledRun);
       setSelectedNodeId("backpack");
@@ -217,26 +365,7 @@ export default function SandboxTraceLab({
       toast.success(`抽卡完成，获得 ${result.records.length} 项结果。`);
 
       void enrichRunWithAudit(runId, result.requestId);
-      const backpack = await syncGachaBackpackAfterPull({ eventId: result.eventId });
-      setRun((current) => {
-        if (current.runId !== runId) {
-          return current;
-        }
-        return reduceGachaTrace(
-          current,
-          backpack.ok
-            ? { type: "backpack_succeeded", at: currentTimestamp() }
-            : {
-                type: "backpack_failed",
-                at: currentTimestamp(),
-                message: backpack.message,
-              },
-        );
-      });
-      if (!backpack.ok) {
-        setSelectedNodeId("backpack");
-        toast.warning(backpack.message);
-      }
+      await checkBackpack(runId, result.eventId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "抽卡请求状态未知。";
       const failedRun = reduceGachaTrace(initialRun, {
@@ -267,9 +396,11 @@ export default function SandboxTraceLab({
   };
 
   const resetView = () => {
-    if (isPulling) {
+    if (isPulling || isCheckingBackpack) {
       return;
     }
+    setReplayFrameIndex(-1);
+    setIsReplayPlaying(false);
     setRun(
       createGachaTraceRun({
         runId: "waiting-for-first-run",
@@ -423,7 +554,7 @@ export default function SandboxTraceLab({
               <button
                 type="button"
                 onClick={resetView}
-                disabled={isPulling}
+                disabled={isPulling || isCheckingBackpack}
                 className="flex size-7 items-center justify-center border border-[#d5dfda] bg-white text-[#718078] transition hover:border-[#98a9a0] hover:text-[#26372e] disabled:opacity-40"
                 title="清空当前视图"
                 aria-label="清空当前视图"
@@ -457,24 +588,54 @@ export default function SandboxTraceLab({
               </p>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-black">
+              {run.eventId && run.nodes.backpack.errorCode === "pull_event_pending" ? (
+                <button
+                  type="button"
+                  onClick={() => void checkBackpack(run.runId, run.eventId!, true)}
+                  disabled={isCheckingBackpack || isPulling}
+                  className="flex h-7 items-center gap-1.5 border border-[#d8bb7d] bg-[#fff8e8] px-2.5 text-[#8f5b16] transition hover:border-[#bd7a1f] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isCheckingBackpack ? (
+                    <LoaderCircle className="size-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3" />
+                  )}
+                  {isCheckingBackpack ? "检查中" : "重新检查"}
+                </button>
+              ) : null}
               <TrafficLegend color="bg-[#287f92]" label="南北流量" />
               <TrafficLegend color="bg-[#466fc2]" label="东西流量" />
               <TrafficLegend color="bg-[#bd7a1f]" label="异步流量" icon={<RadioTower className="size-3" />} />
             </div>
           </div>
 
+          <TraceReplayControls
+            frames={replayFrames}
+            activeIndex={replayFrameIndex}
+            isPlaying={isReplayPlaying}
+            speed={replaySpeed}
+            onToggle={toggleReplay}
+            onRestart={restartReplay}
+            onSeek={seekReplay}
+            onSpeedChange={setReplaySpeed}
+          />
+
           <div className="h-[980px] min-h-[920px] border-b border-[#d5dfda] sm:h-[480px] sm:min-h-[430px] 2xl:h-[560px]">
             <GachaTraceCanvas
               run={run}
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
+              replayEdgeId={activeReplayFrame?.edgeId}
+              replayNodeId={activeReplayFrame?.targetNodeId}
+              replayPlaying={isReplayPlaying}
+              replayDurationMs={replayDurationMs}
             />
           </div>
 
           <TraceWaterfall run={run} />
         </section>
 
-        <TraceNodeInspector run={run} nodeId={selectedNodeId} />
+        <TraceNodeInspector run={run} nodeId={selectedNodeId} replayFrame={activeReplayFrame} />
       </div>
     </main>
   );
@@ -535,6 +696,44 @@ function mapGatewayRecord(record: GatewayPullRecord): DisplayPullResult {
     itemName: record.item_name,
     rarity: record.rarity,
     isFeatured: record.is_featured,
+  };
+}
+
+function mapGatewayTraceRecord(record: GatewayPullRecord) {
+  return {
+    id: record.id,
+    itemId: record.item_id,
+    itemName: record.item_name,
+    itemType: record.item_type,
+    rarity: record.rarity,
+    isFeatured: record.is_featured,
+  };
+}
+
+function mapBackpackTraceResult(
+  result: Extract<BackpackSyncActionResult, { ok: true }>,
+) {
+  return {
+    event: {
+      eventId: result.event.event_id,
+      eventType: result.event.event_type,
+      bannerId: result.event.banner_id,
+      stateVersion: result.event.state_version,
+      receivedAt: result.event.received_at,
+    },
+    eventRecords: result.eventRecords.map((record) => ({
+      id: record.id,
+      itemId: record.item_id,
+      itemName: record.item_name,
+      itemType: record.item_type,
+      rarity: record.rarity,
+      isFeatured: record.is_featured,
+    })),
+    historyCount: result.history.length,
+    inventory: {
+      distinctItemCount: result.inventory.length,
+      totalQuantity: result.inventory.reduce((total, item) => total + item.quantity, 0),
+    },
   };
 }
 
