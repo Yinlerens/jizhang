@@ -1,7 +1,10 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { pullGacha, type GatewayPitySnapshot, type GatewayPullRecord } from "@/lib/gateway/gacha";
 import { GatewayFetchError } from "@/lib/gateway/client";
+import { getAuditLogDetail } from "@/lib/gateway/audit";
 import {
   getBackpackInventory,
   getBackpackPullEvent,
@@ -11,10 +14,13 @@ import {
   type BackpackPullRecord,
 } from "@/lib/gateway/backpack";
 import { createClient } from "@/lib/supabase/server";
+import { toGachaTraceAuditSnapshot } from "@/lib/trace/gacha-audit";
+import type { GachaTraceAuditSnapshot } from "@/lib/trace/gacha-run";
 
 export type PullGachaActionResult =
   | {
       ok: true;
+      requestId: string;
       eventId: string;
       records: GatewayPullRecord[];
       nextPity: GatewayPitySnapshot;
@@ -22,6 +28,7 @@ export type PullGachaActionResult =
     }
   | {
       ok: false;
+      requestId: string;
       message: string;
       code?: string;
     };
@@ -39,19 +46,27 @@ export type BackpackSyncActionResult =
       message: string;
     };
 
+export type GachaTraceAuditActionResult =
+  | { ok: true; audit: GachaTraceAuditSnapshot }
+  | { ok: false; message: string };
+
 export async function drawGachaPull({
   bannerId,
   count,
   idempotencyKey,
+  requestId,
 }: {
   bannerId: string;
   count: 1 | 10;
   idempotencyKey: string;
+  requestId?: string;
 }): Promise<PullGachaActionResult> {
+  const normalizedRequestId = normalizeRequestId(requestId);
   const normalizedBannerId = typeof bannerId === "string" ? bannerId.trim() : "";
   if (!normalizedBannerId || normalizedBannerId.length > 100) {
     return {
       ok: false,
+      requestId: normalizedRequestId,
       message: "卡池 ID 不合法，请刷新页面后重试。",
     };
   }
@@ -59,6 +74,7 @@ export async function drawGachaPull({
   if (count !== 1 && count !== 10) {
     return {
       ok: false,
+      requestId: normalizedRequestId,
       message: "只能执行 1 抽或 10 抽。",
     };
   }
@@ -68,6 +84,7 @@ export async function drawGachaPull({
   if (!isUuidLike(normalizedIdempotencyKey)) {
     return {
       ok: false,
+      requestId: normalizedRequestId,
       code: "invalid_idempotency_key",
       message: "抽卡请求标识不合法，请刷新页面后重试。",
     };
@@ -86,6 +103,7 @@ export async function drawGachaPull({
   if (!user || !session?.access_token) {
     return {
       ok: false,
+      requestId: normalizedRequestId,
       message: "登录状态已失效，请重新登录。",
     };
   }
@@ -96,19 +114,22 @@ export async function drawGachaPull({
       bannerId: normalizedBannerId,
       count,
       idempotencyKey: normalizedIdempotencyKey,
+      requestId: normalizedRequestId,
     });
 
     return {
       ok: true,
-      eventId: result.event_id,
-      records: result.records,
-      nextPity: result.next_pity,
-      stateVersion: result.state_version,
+      requestId: result.requestId,
+      eventId: result.data.event_id,
+      records: result.data.records,
+      nextPity: result.data.next_pity,
+      stateVersion: result.data.state_version,
     };
   } catch (error) {
     if (error instanceof GatewayFetchError) {
       return {
         ok: false,
+        requestId: error.requestId ?? normalizedRequestId,
         code: error.code,
         message:
           error.code === "kafka_unavailable"
@@ -119,6 +140,7 @@ export async function drawGachaPull({
 
     return {
       ok: false,
+      requestId: normalizedRequestId,
       message: error instanceof Error ? error.message : "抽取失败，请稍后重试。",
     };
   }
@@ -129,32 +151,73 @@ async function pullGachaWithRetry({
   bannerId,
   count,
   idempotencyKey,
+  requestId,
 }: {
   accessToken: string;
   bannerId: string;
   count: 1 | 10;
   idempotencyKey: string;
+  requestId: string;
 }) {
   let lastError: unknown;
+  let activeRequestId = requestId;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await pullGacha({
+      const data = await pullGacha({
         accessToken,
         bannerId,
         count,
         idempotencyKey,
+        requestId: activeRequestId,
       });
+      return { data, requestId: activeRequestId };
     } catch (error) {
       lastError = error;
       if (!(error instanceof GatewayFetchError) || error.code !== "kafka_unavailable") {
         throw error;
       }
       await delay(300);
+      activeRequestId = randomUUID();
     }
   }
 
   throw lastError instanceof Error ? lastError : new Error("抽取失败，请稍后重试。");
+}
+
+export async function loadGachaTraceAudit({
+  requestId,
+}: {
+  requestId: string;
+}): Promise<GachaTraceAuditActionResult> {
+  const normalizedRequestId = requestId.trim();
+  if (!isUuidLike(normalizedRequestId)) {
+    return { ok: false, message: "请求编号不合法。" };
+  }
+
+  const supabase = await createClient();
+  const [
+    {
+      data: { session },
+    },
+    {
+      data: { user },
+    },
+  ] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+
+  if (!user || !session?.access_token) {
+    return { ok: false, message: "登录状态已失效。" };
+  }
+
+  try {
+    const detail = await getAuditLogDetail(session.access_token, normalizedRequestId);
+    return { ok: true, audit: toGachaTraceAuditSnapshot(detail) };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "请求审计详情暂不可用。",
+    };
+  }
 }
 
 export async function syncGachaBackpackAfterPull({
@@ -234,4 +297,9 @@ function delay(ms: number) {
 
 function isUuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeRequestId(value: string | undefined) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return isUuidLike(normalized) ? normalized : randomUUID();
 }
