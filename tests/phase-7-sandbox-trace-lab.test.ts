@@ -69,6 +69,140 @@ test("keeps downstream storage waiting until the Kafka event is consumed", () =>
   assert.equal(completed.finishedAt, 1_510);
 });
 
+test("treats an unconsumed Backpack event as pending instead of a failed pull", () => {
+  const startedAt = 2_000;
+  const initial = createGachaTraceRun({
+    runId: "run-pending",
+    bannerId: "limited-character-1",
+    count: 10,
+    startedAt,
+  });
+  const running = reduceGachaTrace(initial, {
+    type: "request_started",
+    at: startedAt,
+    requestId: "request-pending",
+    idempotencyKey: "idempotency-pending",
+  });
+  const pulled = reduceGachaTrace(running, {
+    type: "pull_succeeded",
+    at: 2_240,
+    requestId: "request-pending",
+    eventId: "event-pending",
+    result: {
+      stateVersion: 7,
+      nextPity: { pulls_since_last_5: 3, pulls_since_last_4: 1 },
+      records: [{ id: "record-1", itemId: "item-1", itemName: "今汐", rarity: 5 }],
+    },
+  });
+  const pending = reduceGachaTrace(pulled, {
+    type: "backpack_pending",
+    at: 5_500,
+    attempts: 6,
+    retryAfterMs: 3_000,
+    message: "Backpack 尚未消费本次 Kafka 事件，可重新检查。",
+  });
+
+  assert.equal(pending.status, "waiting");
+  assert.equal(pending.failedNodeId, null);
+  assert.equal(pending.finishedAt, null);
+  assert.equal(pending.nodes.backpack.status, "waiting");
+  assert.equal(pending.nodes.backpack.httpStatus, 404);
+  assert.equal(pending.nodes.backpack.errorCode, "pull_event_pending");
+  assert.equal(pending.nodes["backpack-db"].status, "waiting");
+  assert.doesNotMatch(JSON.stringify(pending), /backpack_sync_failed/);
+});
+
+test("keeps a useful sanitized packet on every hop of a completed pull", () => {
+  const startedAt = 3_000;
+  const initial = createGachaTraceRun({
+    runId: "run-packets",
+    bannerId: "limited-character-1",
+    count: 1,
+    startedAt,
+  });
+  const running = reduceGachaTrace(initial, {
+    type: "request_started",
+    at: startedAt,
+    requestId: "request-packets",
+    idempotencyKey: "idempotency-packets",
+  });
+  const pulled = reduceGachaTrace(running, {
+    type: "pull_succeeded",
+    at: 3_180,
+    requestId: "request-packets",
+    eventId: "event-packets",
+    result: {
+      stateVersion: 8,
+      nextPity: { pulls_since_last_5: 4, pulls_since_last_4: 0 },
+      records: [{ id: "record-2", itemId: "item-2", itemName: "异构武器", rarity: 4 }],
+    },
+  });
+  const pending = reduceGachaTrace(pulled, {
+    type: "backpack_pending",
+    at: 6_400,
+    attempts: 6,
+    retryAfterMs: 3_000,
+    message: "Backpack 尚未消费本次 Kafka 事件，可重新检查。",
+  });
+
+  for (const nodeId of GACHA_TRACE_NODE_ORDER) {
+    assert.notEqual(pending.nodes[nodeId].request, null, `${nodeId} should expose its request packet`);
+    assert.notEqual(pending.nodes[nodeId].response, null, `${nodeId} should expose its response packet`);
+  }
+
+  const packets = JSON.stringify(pending.nodes);
+  assert.match(packets, /request-packets/);
+  assert.match(packets, /event-packets/);
+  assert.match(packets, /observed/);
+  assert.match(packets, /derived/);
+  assert.doesNotMatch(packets, /authorization|bearer|access[_-]?token/i);
+});
+
+test("builds deterministic replay frames for the complete packet path", async () => {
+  const { buildGachaReplayFrames } = await import("../lib/trace/gacha-replay.ts");
+  const initial = createGachaTraceRun({
+    runId: "run-replay",
+    bannerId: "limited-character-1",
+    count: 1,
+    startedAt: 4_000,
+  });
+  const running = reduceGachaTrace(initial, {
+    type: "request_started",
+    at: 4_000,
+    requestId: "request-replay",
+    idempotencyKey: "idempotency-replay",
+  });
+  const pulled = reduceGachaTrace(running, {
+    type: "pull_succeeded",
+    at: 4_220,
+    requestId: "request-replay",
+    eventId: "event-replay",
+    result: {
+      stateVersion: 9,
+      nextPity: { pulls_since_last_5: 5, pulls_since_last_4: 1 },
+      records: [{ id: "record-3", itemId: "item-3", itemName: "测试道具", rarity: 3 }],
+    },
+  });
+  const pending = reduceGachaTrace(pulled, {
+    type: "backpack_pending",
+    at: 7_500,
+    attempts: 6,
+    retryAfterMs: 3_000,
+    message: "Backpack 尚未消费本次 Kafka 事件，可重新检查。",
+  });
+
+  const frames = buildGachaReplayFrames(pending);
+
+  assert.deepEqual(
+    frames.map((frame) => frame.edgeId),
+    GACHA_TRACE_EDGES.map((edge) => edge.id),
+  );
+  assert.equal(frames[0]?.sourceNodeId, "browser");
+  assert.equal(frames.at(-1)?.targetNodeId, "backpack-db");
+  assert.equal(frames.at(-1)?.status, "waiting");
+  assert.ok(frames.every((frame) => frame.packet !== null));
+});
+
 test("attributes dependency errors to the node where the request stopped", () => {
   assert.equal(locateGachaFailure("next_auth_missing").nodeId, "next");
   assert.equal(locateGachaFailure("invalid_idempotency_key").nodeId, "next");
@@ -178,6 +312,32 @@ test("allows a pending idempotent pull to recover without charging the display t
   assert.match(lab, /isRecovery/);
   assert.match(lab, /if \(!isRecovery\)/);
   assert.match(lab, /恢复上一笔/);
+});
+
+test("classifies Backpack 404 responses as retryable pending state", () => {
+  const actions = read("../app/gacha/actions.ts");
+  const lab = read("../app/SandboxTraceLab.tsx");
+
+  assert.match(actions, /error instanceof GatewayFetchError\s*&&\s*error\.status === 404/);
+  assert.match(actions, /state: "pending"/);
+  assert.match(actions, /code: "pull_event_pending"/);
+  assert.match(lab, /backpack_pending/);
+  assert.match(lab, /重新检查/);
+});
+
+test("provides replay controls and projects replay state onto the graph", () => {
+  const lab = read("../app/SandboxTraceLab.tsx");
+  const controls = read("../components/trace/TraceReplayControls.tsx");
+  const canvas = read("../components/trace/GachaTraceCanvas.tsx");
+
+  assert.match(lab, /buildGachaReplayFrames/);
+  assert.match(controls, /播放/);
+  assert.match(controls, /暂停/);
+  assert.match(controls, /重新播放/);
+  assert.match(controls, /type="range"/);
+  assert.match(controls, /播放速度/);
+  assert.match(canvas, /replayEdgeId/);
+  assert.match(canvas, /replayNodeId/);
 });
 
 function read(path: string) {
