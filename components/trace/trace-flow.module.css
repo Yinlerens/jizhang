@@ -1,0 +1,72 @@
+.canvas {
+  height: 100%;
+  min-height: 430px;
+  background-color: #edf2ef;
+  background-image:
+    linear-gradient(#d8e1dc 1px, transparent 1px),
+    linear-gradient(90deg, #d8e1dc 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.compactCanvas {
+  min-height: 920px;
+}
+
+.canvas :global(.react-flow__pane) {
+  cursor: grab;
+}
+
+.canvas :global(.react-flow__pane:active) {
+  cursor: grabbing;
+}
+
+.canvas :global(.react-flow__controls) {
+  overflow: hidden;
+  border: 1px solid #cbd6d0;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.canvas :global(.react-flow__controls-button) {
+  width: 30px;
+  height: 30px;
+  border-bottom-color: #dce4df;
+  background: #ffffff;
+  color: #26352e;
+}
+
+.canvas :global(.react-flow__controls-button:hover) {
+  background: #eef3f0;
+}
+
+.canvas :global(.react-flow__attribution) {
+  background: rgb(255 255 255 / 82%);
+  color: #718078;
+  font-size: 9px;
+}
+
+.edgeLabel {
+  position: absolute;
+  max-width: 150px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #cbd6d0;
+  border-radius: 4px;
+  background: rgb(250 252 251 / 96%);
+  padding: 1px 4px;
+  color: #52615a;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 8px;
+  font-weight: 750;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.packet {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .packet {
+    display: none;
+  }
+}

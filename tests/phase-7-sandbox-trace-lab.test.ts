@@ -70,6 +70,8 @@ test("keeps downstream storage waiting until the Kafka event is consumed", () =>
 });
 
 test("attributes dependency errors to the node where the request stopped", () => {
+  assert.equal(locateGachaFailure("next_auth_missing").nodeId, "next");
+  assert.equal(locateGachaFailure("invalid_idempotency_key").nodeId, "next");
   assert.equal(locateGachaFailure("gateway_connection_failed").nodeId, "gateway");
   assert.equal(locateGachaFailure("upstream_unavailable").nodeId, "gacha");
   assert.equal(locateGachaFailure("gacha_config_unavailable").nodeId, "config");
@@ -158,6 +160,24 @@ test("replaces the old Sandbox experience with an interactive trace lab", () => 
   assert.match(lab, /syncGachaBackpackAfterPull/);
   assert.match(lab, /南北流量/);
   assert.match(lab, /东西流量/);
+});
+
+test("keeps trace nodes operable on keyboard and readable on narrow screens", () => {
+  const canvas = read("../components/trace/GachaTraceCanvas.tsx");
+
+  assert.match(canvas, /COMPACT_NODE_POSITIONS/);
+  assert.match(canvas, /data-testid={`trace-node-\${data\.nodeId}`}/);
+  assert.match(canvas, /aria-pressed={selected}/);
+  assert.match(canvas, /type="button"/);
+});
+
+test("allows a pending idempotent pull to recover without charging the display twice", () => {
+  const lab = read("../app/SandboxTraceLab.tsx");
+
+  assert.match(lab, /recoverableOperation/);
+  assert.match(lab, /isRecovery/);
+  assert.match(lab, /if \(!isRecovery\)/);
+  assert.match(lab, /恢复上一笔/);
 });
 
 function read(path: string) {

@@ -318,6 +318,15 @@ export function locateGachaFailure(code?: string): {
 } {
   const normalized = (code ?? "").trim().toLowerCase();
 
+  if (
+    normalized === "next_auth_missing" ||
+    normalized === "invalid_banner_id" ||
+    normalized === "invalid_pull_count" ||
+    normalized === "invalid_idempotency_key"
+  ) {
+    return { nodeId: "next", summary: "服务端动作在请求校验阶段终止" };
+  }
+
   if (normalized === "gateway_connection_failed") {
     return { nodeId: "gateway", summary: "无法连接 Gateway" };
   }
@@ -415,6 +424,7 @@ function pullSucceeded(
     status: "waiting",
     evidence: "pending",
     summary: "等待消费 Kafka 事件",
+    startedAt: signal.at,
   });
   nodes = updateNode(nodes, "backpack-db", {
     status: "waiting",
@@ -489,10 +499,14 @@ function auditLoaded(
   const startedAt = Date.parse(audit.startedAt);
   const finishedAt = audit.finishedAt ? Date.parse(audit.finishedAt) : Number.NaN;
   const hasError = typeof audit.responseStatus === "number" && audit.responseStatus >= 500;
+  const gatewayIsFailurePoint = run.failedNodeId === "gateway";
   const nodes = updateNode(run.nodes, "gateway", {
     evidence: "observed",
-    status: hasError ? "error" : run.nodes.gateway.status,
-    summary: hasError ? audit.errorMessage ?? "网关返回服务错误" : run.nodes.gateway.summary,
+    status: hasError && gatewayIsFailurePoint ? "error" : run.nodes.gateway.status,
+    summary:
+      hasError && gatewayIsFailurePoint
+        ? audit.errorMessage ?? "网关返回服务错误"
+        : run.nodes.gateway.summary,
     startedAt: Number.isFinite(startedAt) ? startedAt : run.nodes.gateway.startedAt,
     finishedAt: Number.isFinite(finishedAt) ? finishedAt : run.nodes.gateway.finishedAt,
     durationMs: audit.durationMs,
@@ -516,6 +530,10 @@ function backpackSucceeded(run: GachaTraceRun, at: number): GachaTraceRun {
     evidence: "observed",
     summary: "Kafka 事件已消费",
     finishedAt: at,
+    durationMs:
+      run.nodes.backpack.startedAt === null
+        ? null
+        : Math.max(0, at - run.nodes.backpack.startedAt),
   });
   nodes = updateNode(nodes, "backpack-db", {
     status: "success",
@@ -539,6 +557,10 @@ function backpackFailed(run: GachaTraceRun, at: number, message: string): GachaT
     evidence: "observed",
     summary: "背包事件暂未完成",
     finishedAt: at,
+    durationMs:
+      run.nodes.backpack.startedAt === null
+        ? null
+        : Math.max(0, at - run.nodes.backpack.startedAt),
     errorCode: "backpack_sync_failed",
     errorMessage: message,
   });
@@ -640,4 +662,3 @@ function successSummary(id: GachaTraceNodeId) {
   };
   return summaries[id];
 }
-

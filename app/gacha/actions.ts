@@ -67,6 +67,7 @@ export async function drawGachaPull({
     return {
       ok: false,
       requestId: normalizedRequestId,
+      code: "invalid_banner_id",
       message: "卡池 ID 不合法，请刷新页面后重试。",
     };
   }
@@ -75,6 +76,7 @@ export async function drawGachaPull({
     return {
       ok: false,
       requestId: normalizedRequestId,
+      code: "invalid_pull_count",
       message: "只能执行 1 抽或 10 抽。",
     };
   }
@@ -104,6 +106,7 @@ export async function drawGachaPull({
     return {
       ok: false,
       requestId: normalizedRequestId,
+      code: "next_auth_missing",
       message: "登录状态已失效，请重新登录。",
     };
   }
