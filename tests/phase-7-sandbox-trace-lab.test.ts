@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -137,3 +138,28 @@ test("converts gateway audit details without exposing authentication headers", (
   assert.equal("requestHeaders" in snapshot, false);
   assert.equal("responseHeaders" in snapshot, false);
 });
+
+test("replaces the old Sandbox experience with an interactive trace lab", () => {
+  const page = read("../app/page.tsx");
+  const lab = read("../app/SandboxTraceLab.tsx");
+  const canvas = read("../components/trace/GachaTraceCanvas.tsx");
+  const waterfall = read("../components/trace/TraceWaterfall.tsx");
+  const packageJson = read("../package.json");
+
+  assert.match(page, /import SandboxTraceLab from "\.\/SandboxTraceLab"/);
+  assert.doesNotMatch(page, /import GachaExperience from "\.\/GachaExperience"/);
+  assert.match(packageJson, /"@xyflow\/react"/);
+  assert.match(canvas, /ReactFlow/);
+  assert.match(canvas, /north-south/);
+  assert.match(canvas, /east-west/);
+  assert.match(waterfall, /GACHA_TRACE_NODE_ORDER/);
+  assert.match(lab, /drawGachaPull/);
+  assert.match(lab, /loadGachaTraceAudit/);
+  assert.match(lab, /syncGachaBackpackAfterPull/);
+  assert.match(lab, /南北流量/);
+  assert.match(lab, /东西流量/);
+});
+
+function read(path: string) {
+  return readFileSync(new URL(path, import.meta.url), "utf8");
+}
