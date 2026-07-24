@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CirclePlay,
@@ -83,6 +83,7 @@ export default function SandboxTraceLab({
   const [balanceMinor, setBalanceMinor] = useState(initialBalanceMinor);
   const [pendingOperation, setPendingOperation] = useState<PendingOperation | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<GachaTraceNodeId>("gateway");
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [results, setResults] = useState<DisplayPullResult[]>(() =>
     (initialHistory ?? []).slice(0, 10).map(mapHistoryRecord),
   );
@@ -259,6 +260,12 @@ export default function SandboxTraceLab({
     setReplayFrameIndex(index);
   };
 
+  const openNodeInspector = useCallback((nodeId: GachaTraceNodeId) => {
+    setIsReplayPlaying(false);
+    setSelectedNodeId(nodeId);
+    setIsInspectorOpen(true);
+  }, []);
+
   const executePull = async () => {
     if (!activeBanner || isPulling) {
       return;
@@ -308,6 +315,7 @@ export default function SandboxTraceLab({
     setPendingOperation(operation);
     setReplayFrameIndex(-1);
     setIsReplayPlaying(false);
+    setIsInspectorOpen(false);
     setRun(initialRun);
     setSelectedNodeId("next");
     setIsPulling(true);
@@ -401,6 +409,7 @@ export default function SandboxTraceLab({
     }
     setReplayFrameIndex(-1);
     setIsReplayPlaying(false);
+    setIsInspectorOpen(false);
     setRun(
       createGachaTraceRun({
         runId: "waiting-for-first-run",
@@ -414,12 +423,12 @@ export default function SandboxTraceLab({
   };
 
   return (
-    <main className="min-h-screen bg-[#edf2ef] text-[#17251e]">
-      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[#cdd8d2] bg-[#17271f] px-4 py-2 text-white lg:px-5">
+    <main className="min-h-screen bg-[#f4f7f5] text-[#17251e]">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[#d3ddd8] bg-white px-4 py-2 text-[#17251e] lg:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/console"
-            className="flex size-8 shrink-0 items-center justify-center border border-white/15 text-white/70 transition hover:border-white/35 hover:text-white"
+            className="flex size-8 shrink-0 items-center justify-center border border-[#d4ded9] bg-[#f8faf9] text-[#66756d] transition hover:border-[#98aaa1] hover:text-[#1f372c]"
             title="返回控制台"
             aria-label="返回控制台"
           >
@@ -427,10 +436,10 @@ export default function SandboxTraceLab({
           </Link>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Network className="size-4 text-[#73d7b0]" />
+              <Network className="size-4 text-[#2f8c68]" />
               <h1 className="truncate text-sm font-black">GachaOps Trace Lab</h1>
             </div>
-            <p className="mt-0.5 truncate font-mono text-[9px] text-white/45">
+            <p className="mt-0.5 truncate font-mono text-[9px] text-[#839088]">
               {run.requestId ?? "NO ACTIVE REQUEST"}
             </p>
           </div>
@@ -440,7 +449,7 @@ export default function SandboxTraceLab({
           <RunStatus run={run} />
           <Link
             href="/admin/gacha/audit-logs"
-            className="flex h-8 items-center gap-2 border border-white/15 px-3 text-[10px] font-black text-white/70 transition hover:border-white/35 hover:text-white"
+            className="flex h-8 items-center gap-2 border border-[#d4ded9] bg-[#f8faf9] px-3 text-[10px] font-black text-[#5c6b63] transition hover:border-[#98aaa1] hover:text-[#1f372c]"
           >
             <FileClock className="size-3.5" />
             API 记录
@@ -448,7 +457,7 @@ export default function SandboxTraceLab({
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 xl:grid-cols-[232px_minmax(620px,1fr)_288px]">
+      <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 xl:grid-cols-[232px_minmax(620px,1fr)]">
         <aside className="border-b border-[#d4ded9] bg-[#f8faf9] xl:border-r xl:border-b-0">
           <div className="border-b border-[#dce4e0] px-4 py-4">
             <div className="flex items-center justify-between">
@@ -624,7 +633,7 @@ export default function SandboxTraceLab({
             <GachaTraceCanvas
               run={run}
               selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
+              onSelectNode={openNodeInspector}
               replayEdgeId={activeReplayFrame?.edgeId}
               replayNodeId={activeReplayFrame?.targetNodeId}
               replayPlaying={isReplayPlaying}
@@ -634,18 +643,24 @@ export default function SandboxTraceLab({
 
           <TraceWaterfall run={run} />
         </section>
-
-        <TraceNodeInspector run={run} nodeId={selectedNodeId} replayFrame={activeReplayFrame} />
       </div>
+
+      <TraceNodeInspector
+        run={run}
+        nodeId={selectedNodeId}
+        replayFrame={activeReplayFrame}
+        open={isInspectorOpen}
+        onOpenChange={setIsInspectorOpen}
+      />
     </main>
   );
 }
 
 function RunStatus({ run }: { run: GachaTraceRun }) {
   return (
-    <div className="hidden items-center gap-2 border border-white/10 bg-white/[0.04] px-3 py-1.5 sm:flex">
+    <div className="hidden items-center gap-2 border border-[#d4ded9] bg-[#f8faf9] px-3 py-1.5 sm:flex">
       <span className={`size-1.5 rounded-full ${runStatusDot(run.status)}`} />
-      <span className="text-[9px] font-black text-white/70">{runStatusLabel(run.status)}</span>
+      <span className="text-[9px] font-black text-[#5f6e66]">{runStatusLabel(run.status)}</span>
     </div>
   );
 }

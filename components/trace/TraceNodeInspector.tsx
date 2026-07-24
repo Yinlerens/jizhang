@@ -4,6 +4,13 @@ import { useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   GACHA_TRACE_NODE_DEFINITIONS,
   type GachaTraceNodeId,
   type GachaTraceRun,
@@ -16,10 +23,14 @@ export default function TraceNodeInspector({
   run,
   nodeId,
   replayFrame = null,
+  open,
+  onOpenChange,
 }: {
   run: GachaTraceRun;
   nodeId: GachaTraceNodeId;
   replayFrame?: GachaReplayFrame | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const [tab, setTab] = useState<InspectorTab>("overview");
   const [copied, setCopied] = useState(false);
@@ -36,138 +47,171 @@ export default function TraceNodeInspector({
   };
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-[#d5dfda] bg-[#fbfcfb]">
-      <div className="border-b border-[#dde5e1] px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={`size-2 rounded-full ${statusDot(node.status)}`} />
-              <h2 className="truncate text-sm font-black text-[#17251e]">{definition.label}</h2>
-            </div>
-            <p className="mt-1 text-[10px] font-semibold text-[#75827b]">{definition.role}</p>
-          </div>
-          <span className={`shrink-0 border px-2 py-1 text-[9px] font-black ${statusBadge(node.status)}`}>
-            {statusLabel(node.status)}
-          </span>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 border border-[#dfe6e2] bg-white">
-          <Metric label="证据" value={evidenceLabel(node.evidence)} />
-          <Metric label="状态码" value={node.httpStatus === null ? "--" : String(node.httpStatus)} />
-          <Metric label="耗时" value={node.durationMs === null ? "--" : `${node.durationMs} ms`} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 border-b border-[#dde5e1] bg-white p-1">
-        {(
-          [
-            ["overview", "概览"],
-            ["request", "请求"],
-            ["response", "响应"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`h-8 text-[10px] font-black transition ${
-              tab === value ? "bg-[#1d3027] text-white" : "text-[#6f7d75] hover:bg-[#edf2ef]"
-            }`}
-            onClick={() => setTab(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        {tab === "overview" ? (
-          <div className="space-y-4">
-            <section>
-              <Label>当前结论</Label>
-              <p className={`mt-1 text-sm font-bold leading-6 ${node.status === "error" ? "text-[#b93138]" : "text-[#28362f]"}`}>
-                {node.summary}
-              </p>
-            </section>
-
-            {node.errorCode || node.errorMessage ? (
-              <section
-                className={`border-l-2 px-3 py-2.5 ${
-                  node.status === "error"
-                    ? "border-[#d4484e] bg-[#fff3f3]"
-                    : "border-[#d69432] bg-[#fff8e9]"
-                }`}
-              >
-                <Label>{node.status === "error" ? "错误" : "等待原因"}</Label>
-                <div
-                  className={`mt-1 font-mono text-[10px] font-bold ${
-                    node.status === "error" ? "text-[#b93138]" : "text-[#8f5b16]"
-                  }`}
-                >
-                  {node.errorCode ?? "unknown_error"}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        data-testid="trace-node-inspector-dialog"
+        className="gap-0 overflow-hidden border border-[#ccd8d2] bg-[#f8faf9] p-0 shadow-2xl"
+        style={{
+          width: "min(1120px, calc(100vw - 2rem))",
+          maxWidth: "none",
+          height: "min(760px, calc(100vh - 2rem))",
+        }}
+      >
+        <div className="flex min-h-0 flex-col">
+          <DialogHeader className="shrink-0 gap-0 border-b border-[#dde5e1] bg-white px-5 py-4 pr-16 sm:px-6 sm:py-5 sm:pr-16">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <span className={`size-2.5 shrink-0 rounded-full ${statusDot(node.status)}`} />
+                  <DialogTitle className="truncate text-base font-black tracking-normal text-[#17251e] normal-case sm:text-lg">
+                    {definition.label}
+                  </DialogTitle>
                 </div>
-                <p
-                  className={`mt-1 text-xs font-semibold leading-5 ${
-                    node.status === "error" ? "text-[#7f3b3f]" : "text-[#795b2d]"
-                  }`}
-                >
-                  {node.errorMessage}
-                </p>
-              </section>
-            ) : null}
-
-            {replayFrame && replayFrame.targetNodeId === nodeId ? (
-              <section className="border-t border-[#e2e8e5] pt-4">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <Label>当前重放数据包</Label>
-                  <span className="font-mono text-[8px] font-black text-[#718078]">
-                    {replayFrame.index + 1}
-                  </span>
-                </div>
-                <JsonPanel value={replayFrame.packet} emptyMessage="本帧没有可用数据包" />
-              </section>
-            ) : null}
-
-            <section className="space-y-2 border-t border-[#e2e8e5] pt-4">
-              <KeyValue label="流量" value={trafficLabel(definition.traffic)} />
-              <KeyValue label="Run ID" value={run.runId} mono />
-              <div className="flex items-start justify-between gap-2">
-                <KeyValue label="Request ID" value={run.requestId ?? "尚未生成"} mono />
-                <button
-                  type="button"
-                  className="mt-4 flex size-7 shrink-0 items-center justify-center border border-[#d6dfda] bg-white text-[#607068] transition hover:border-[#9baba3] hover:text-[#1d3027] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!run.requestId}
-                  onClick={() => void copyRequestId()}
-                  title="复制 Request ID"
-                  aria-label="复制 Request ID"
-                >
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </button>
+                <DialogDescription className="mt-1 text-[11px] font-semibold text-[#75827b]">
+                  {definition.role}
+                </DialogDescription>
               </div>
-              <KeyValue label="Event ID" value={run.eventId ?? "尚未生成"} mono />
-            </section>
-          </div>
-        ) : (
-          <JsonPanel
-            value={tab === "request" ? node.request : node.response}
-            emptyMessage={
-              run.status === "idle"
-                ? "发起抽卡后，这里会显示本次调用的数据包"
-                : `本节点尚未产生${tab === "request" ? "请求" : "响应"}数据包`
-            }
-          />
-        )}
-      </div>
+              <span
+                className={`mr-6 shrink-0 border px-2.5 py-1 text-[9px] font-black sm:mr-2 ${statusBadge(node.status)}`}
+              >
+                {statusLabel(node.status)}
+              </span>
+            </div>
 
-      {run.requestId ? (
-        <a
-          href={`/admin/gacha/audit-logs?request_id=${encodeURIComponent(run.requestId)}`}
-          className="flex h-10 items-center justify-center gap-2 border-t border-[#dce4e0] bg-white text-[10px] font-black text-[#53635b] transition hover:bg-[#edf2ef] hover:text-[#1d3027]"
-        >
-          API 请求记录
-          <ExternalLink className="size-3.5" />
-        </a>
-      ) : null}
-    </aside>
+            <div className="mt-4 grid grid-cols-2 border border-[#dfe6e2] bg-[#f8faf9] sm:grid-cols-4">
+              <Metric label="证据" value={evidenceLabel(node.evidence)} />
+              <Metric label="流量" value={trafficLabel(definition.traffic)} />
+              <Metric label="状态码" value={node.httpStatus === null ? "--" : String(node.httpStatus)} />
+              <Metric label="耗时" value={node.durationMs === null ? "--" : `${node.durationMs} ms`} />
+            </div>
+          </DialogHeader>
+
+          <div
+            className="grid shrink-0 grid-cols-3 border-b border-[#dde5e1] bg-[#f3f6f4] p-1.5"
+            role="tablist"
+            aria-label="节点数据"
+          >
+            {(
+              [
+                ["overview", "概览"],
+                ["request", "请求"],
+                ["response", "响应"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={tab === value}
+                className={`h-9 text-[11px] font-black transition ${
+                  tab === value
+                    ? "bg-white text-[#1d3027] shadow-sm ring-1 ring-[#d7e0dc]"
+                    : "text-[#6f7d75] hover:bg-white/70 hover:text-[#27382f]"
+                }`}
+                onClick={() => setTab(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-4 sm:px-6 sm:py-5">
+            {tab === "overview" ? (
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+                <div className="space-y-5">
+                  <section>
+                    <Label>当前结论</Label>
+                    <p
+                      className={`mt-1.5 text-sm font-bold leading-6 ${
+                        node.status === "error" ? "text-[#b93138]" : "text-[#28362f]"
+                      }`}
+                    >
+                      {node.summary}
+                    </p>
+                  </section>
+
+                  {node.errorCode || node.errorMessage ? (
+                    <section
+                      className={`border-l-2 px-3 py-3 ${
+                        node.status === "error"
+                          ? "border-[#d4484e] bg-[#fff3f3]"
+                          : "border-[#d69432] bg-[#fff8e9]"
+                      }`}
+                    >
+                      <Label>{node.status === "error" ? "错误" : "等待原因"}</Label>
+                      <div
+                        className={`mt-1 font-mono text-[11px] font-bold ${
+                          node.status === "error" ? "text-[#b93138]" : "text-[#8f5b16]"
+                        }`}
+                      >
+                        {node.errorCode ?? "unknown_error"}
+                      </div>
+                      <p
+                        className={`mt-1 text-xs font-semibold leading-5 ${
+                          node.status === "error" ? "text-[#7f3b3f]" : "text-[#795b2d]"
+                        }`}
+                      >
+                        {node.errorMessage}
+                      </p>
+                    </section>
+                  ) : null}
+
+                  {replayFrame && replayFrame.targetNodeId === nodeId ? (
+                    <section className="border-t border-[#e2e8e5] pt-4">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <Label>当前重放数据包</Label>
+                        <span className="font-mono text-[9px] font-black text-[#718078]">
+                          第 {replayFrame.index + 1} 帧
+                        </span>
+                      </div>
+                      <JsonPanel value={replayFrame.packet} emptyMessage="本帧没有可用数据包" />
+                    </section>
+                  ) : null}
+                </div>
+
+                <section className="space-y-3 border-t border-[#e2e8e5] pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
+                  <KeyValue label="Run ID" value={run.runId} mono />
+                  <div className="flex items-start justify-between gap-2">
+                    <KeyValue label="Request ID" value={run.requestId ?? "尚未生成"} mono />
+                    <button
+                      type="button"
+                      className="mt-4 flex size-8 shrink-0 items-center justify-center border border-[#d6dfda] bg-white text-[#607068] transition hover:border-[#9baba3] hover:text-[#1d3027] disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!run.requestId}
+                      onClick={() => void copyRequestId()}
+                      title="复制 Request ID"
+                      aria-label="复制 Request ID"
+                    >
+                      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    </button>
+                  </div>
+                  <KeyValue label="Event ID" value={run.eventId ?? "尚未生成"} mono />
+                </section>
+              </div>
+            ) : (
+              <JsonPanel
+                value={tab === "request" ? node.request : node.response}
+                emptyMessage={
+                  run.status === "idle"
+                    ? "发起抽卡后，这里会显示本次调用的数据包"
+                    : `本节点尚未产生${tab === "request" ? "请求" : "响应"}数据包`
+                }
+                fill
+              />
+            )}
+          </div>
+
+          {run.requestId ? (
+            <a
+              href={`/admin/gacha/audit-logs?request_id=${encodeURIComponent(run.requestId)}`}
+              className="flex h-11 shrink-0 items-center justify-center gap-2 border-t border-[#dce4e0] bg-[#f8faf9] text-[10px] font-black text-[#53635b] transition hover:bg-[#edf2ef] hover:text-[#1d3027]"
+            >
+              API 请求记录
+              <ExternalLink className="size-3.5" />
+            </a>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -198,17 +242,33 @@ function KeyValue({ label, value, mono = false }: { label: string; value: string
   );
 }
 
-function JsonPanel({ value, emptyMessage }: { value: unknown | null; emptyMessage: string }) {
+function JsonPanel({
+  value,
+  emptyMessage,
+  fill = false,
+}: {
+  value: unknown | null;
+  emptyMessage: string;
+  fill?: boolean;
+}) {
   if (value === null) {
     return (
-      <div className="flex min-h-36 items-center justify-center border border-dashed border-[#ced8d3] text-[10px] font-bold text-[#89958f]">
+      <div
+        className={`flex items-center justify-center border border-dashed border-[#ced8d3] bg-[#f8faf9] px-4 text-center text-[11px] font-bold text-[#89958f] ${
+          fill ? "h-full min-h-72" : "min-h-36"
+        }`}
+      >
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <pre className="max-h-[520px] overflow-auto border border-[#dbe3df] bg-[#17231d] p-3 font-mono text-[10px] leading-5 text-[#dce9e2]">
+    <pre
+      className={`overflow-auto border border-[#dbe3df] bg-[#f3f6f4] p-4 font-mono text-[11px] leading-5 text-[#27372f] ${
+        fill ? "h-full min-h-72" : "max-h-[440px]"
+      }`}
+    >
       {safeJson(value)}
     </pre>
   );
