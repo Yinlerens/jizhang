@@ -305,6 +305,24 @@ test("keeps trace nodes operable on keyboard and readable on narrow screens", ()
   assert.match(canvas, /type="button"/);
 });
 
+test("opens node details in a wide light dialog and gives the canvas the freed width", () => {
+  const lab = read("../app/SandboxTraceLab.tsx");
+  const inspector = read("../components/trace/TraceNodeInspector.tsx");
+
+  assert.match(lab, /const \[isInspectorOpen, setIsInspectorOpen\]/);
+  assert.match(lab, /onSelectNode={openNodeInspector}/);
+  assert.match(lab, /open={isInspectorOpen}/);
+  assert.match(lab, /xl:grid-cols-\[232px_minmax\(620px,1fr\)\]/);
+  assert.doesNotMatch(lab, /_288px/);
+  assert.match(lab, /bg-white px-4 py-2 text-\[#17251e\]/);
+
+  assert.match(inspector, /DialogContent/);
+  assert.match(inspector, /data-testid="trace-node-inspector-dialog"/);
+  assert.match(inspector, /bg-\[#f8faf9\]/);
+  assert.match(inspector, /bg-\[#f3f6f4\]/);
+  assert.doesNotMatch(inspector, /bg-\[#17231d\]/);
+});
+
 test("allows a pending idempotent pull to recover without charging the display twice", () => {
   const lab = read("../app/SandboxTraceLab.tsx");
 
