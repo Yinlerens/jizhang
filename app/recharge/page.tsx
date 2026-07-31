@@ -5,20 +5,17 @@ import {
   type AssetAccount,
   type AssetLedgerPage,
 } from "@/lib/gateway/assets";
-import { RECHARGE_TIERS } from "@/lib/recharge/tiers";
-import { createClient } from "@/lib/supabase/server";
+import { SANDBOX_RESOURCE_GRANTS } from "@/lib/sandbox/resource-grants";
+import { getAuthenticatedSession } from "@/lib/supabase/server";
 import RechargeClient from "./RechargeClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function RechargePage() {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { user, session } = await getAuthenticatedSession();
 
-  if (!session?.access_token) {
-    redirect("/login?next=/recharge");
+  if (!user || !session?.access_token) {
+    redirect("/login?next=/sandbox/resources");
   }
 
   let account: AssetAccount | null = null;
@@ -56,7 +53,7 @@ export default async function RechargePage() {
       initialLedgerNextCursor={ledger.next_cursor}
       ledgerLoadError={ledgerLoadError}
       loadError={loadError}
-      tiers={RECHARGE_TIERS}
+      grants={SANDBOX_RESOURCE_GRANTS}
     />
   );
 }

@@ -7,6 +7,7 @@ import { ConfigProvider, Drawer, Tag } from "antd";
 import { toast } from "sonner";
 import {
   drawGachaPull,
+  recoverGachaPull,
   syncGachaBackpackAfterPull,
   type BackpackSyncActionResult,
   type PullGachaActionResult,
@@ -21,14 +22,12 @@ import {
   Plus,
   Search,
   Settings2,
-  ShoppingBag,
-  ShoppingCart,
   Sparkles,
-  X,
 } from "lucide-react";
 import {
   ASTRITE_PER_PULL,
   GACHA_STORAGE_KEY,
+  LEGACY_GACHA_STORAGE_KEY,
   createInitialGachaState,
   getFeaturedRuleForRarity,
   getRarityRule,
@@ -67,8 +66,7 @@ export type GachaExperienceProps = {
   initialPityByBannerId?: Record<string, PityState>;
 };
 
-const GACHA_PENDING_PULL_KEY = "wuwa:gacha:pending-pull:v1";
-const GACHA_PENDING_PULL_TTL_MS = 24 * 60 * 60 * 1000;
+const GACHA_PENDING_PULL_KEY = "gachaops:sandbox:pending-pull:v1";
 
 const theme = {
   token: {
@@ -138,7 +136,9 @@ export default function GachaExperience({
       setPendingPull(readPendingGachaPull());
 
       try {
-        const stored = window.localStorage.getItem(GACHA_STORAGE_KEY);
+        const stored =
+          window.localStorage.getItem(GACHA_STORAGE_KEY) ??
+          window.localStorage.getItem(LEGACY_GACHA_STORAGE_KEY);
         setState(
           applyGatewayInitialState(
             withGatewayBalance(
@@ -213,7 +213,7 @@ export default function GachaExperience({
     }
 
     if (!isRecoveringPendingPull && pullCapacity < count) {
-      toast.warning("星声不足，请先充值。");
+      toast.warning("演示资源不足，请先添加资源。");
       return;
     }
 
@@ -229,14 +229,15 @@ export default function GachaExperience({
     setPullingCount(count);
 
     try {
-      const result = await drawGachaPull({
+      const pullAction = isRecoveringPendingPull ? recoverGachaPull : drawGachaPull;
+      const result = await pullAction({
         bannerId,
         count,
         idempotencyKey: pullOperation.idempotencyKey,
       });
 
       if (!result.ok) {
-        if (result.code === "kafka_unavailable") {
+        if (result.preserveOperation) {
           savePendingGachaPull(pullOperation);
           setPendingPull(pullOperation);
           toast.warning(result.message);
@@ -267,7 +268,7 @@ export default function GachaExperience({
           records,
         }),
       );
-      toast.success(`共鸣完成，获得 ${records.length} 项结果。`);
+      toast.success(`抽取完成，获得 ${records.length} 项结果。`);
       void syncBackpackAfterPull(result.eventId);
     } catch {
       savePendingGachaPull(pullOperation);
@@ -349,41 +350,34 @@ export default function GachaExperience({
         <header className="relative z-20 flex h-14 shrink-0 items-center justify-between px-4 sm:h-16 lg:h-20 lg:px-8">
           <div className="min-w-36">
             <div className="text-2xl font-black leading-none tracking-normal text-white lg:text-4xl">
-              鸣潮
+              GachaOps Sandbox
             </div>
             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.28em] text-white/55 lg:text-[10px] lg:tracking-[0.38em]">
-              Wuthering Waves
+              Configuration Preview
             </div>
           </div>
           <div className="hidden items-center gap-5 md:flex">
             <CurrencyPill
-              href="/recharge"
+              href="/sandbox/resources"
               icon={<Sparkles size={18} />}
               value={state.currencies.astrite}
             />
           </div>
           <div className="flex items-center gap-3">
             <Link
-              aria-label="配置卡池"
+              aria-label="打开 Console"
               className="flex h-10 w-10 items-center justify-center border border-white/12 bg-black/28 text-white/80 transition hover:border-white/35 hover:bg-white/10 lg:h-11 lg:w-11"
-              href="/admin/gacha/items"
+              href="/console"
             >
               <Settings2 size={19} />
             </Link>
             <Link
               aria-label="登录"
               className="flex h-10 w-10 items-center justify-center border border-white/12 bg-black/28 text-white/80 transition hover:border-white/35 hover:bg-white/10 lg:h-11 lg:w-11"
-              href="/login?next=/admin/gacha/items"
+              href="/login?next=/console"
             >
               <LogIn size={19} />
             </Link>
-            <button
-              aria-label="关闭"
-              className="hidden h-11 w-11 items-center justify-center text-white/80 transition hover:text-white md:flex"
-              type="button"
-            >
-              <X size={30} />
-            </button>
           </div>
         </header>
 
@@ -408,10 +402,6 @@ export default function GachaExperience({
               ))}
             </div>
 
-            <div className="mt-auto hidden grid-cols-2 gap-8 pb-9 pl-10 pt-8 lg:grid">
-              <IconLabel icon={<ShoppingCart size={29} />} label="商城兑换" />
-              <IconLabel icon={<ShoppingBag size={29} />} label="共鸣商店" />
-            </div>
           </aside>
 
           <section className="relative min-h-0 overflow-hidden">
@@ -420,7 +410,7 @@ export default function GachaExperience({
                 <div className="mb-[clamp(0.25rem,1svh,0.75rem)] flex items-center gap-2 text-sm font-bold text-[#f4d27a] lg:gap-3 lg:text-lg">
                   <span>✦</span>
                   <span>
-                    {activeBanner.type === "limited-character" ? "角色活动共鸣" : "常驻活动共鸣"}
+                    {activeBanner.type === "limited-character" ? "限定角色池" : "常驻池"}
                   </span>
                   <span>✦</span>
                 </div>
@@ -439,11 +429,11 @@ export default function GachaExperience({
                 </div>
                 <div className="mt-[clamp(0.5rem,2svh,1.75rem)] space-y-1 text-[clamp(0.9rem,2.2svh,1.375rem)] font-medium leading-[1.45] text-white">
                   <p>
-                    每<span className="text-[#f1ca6a]">10</span>次共鸣必得4星或以上内容
+                    每<span className="text-[#f1ca6a]">10</span>次抽取必得4星或以上内容
                   </p>
                   <p>
                     至多<span className="text-[#f1ca6a]">{fiveRule?.hardPity ?? "-"}</span>
-                    次共鸣必得5星角色
+                    次抽取必得5星角色
                   </p>
                 </div>
 
@@ -474,7 +464,7 @@ export default function GachaExperience({
 
                 <div className="mt-[clamp(0.5rem,2svh,2rem)] max-w-[390px] [@media(max-height:760px)]:hidden">
                   <div className="mb-2 text-base font-medium text-white lg:text-xl">
-                    共鸣获得概率提升 ↑
+                    精选内容概率提升 ↑
                   </div>
                   <div className="space-y-1">
                     {bannerRules.slice(0, 3).map((rule) => (
@@ -598,7 +588,7 @@ export default function GachaExperience({
           onClose={() => setHistoryOpen(false)}
           open={historyOpen}
           size="large"
-          title="唤取历史"
+          title="抽取历史"
         >
           <div className="space-y-2">
             {state.history.map((record) => (
@@ -617,27 +607,13 @@ function CurrencyPill({ href, icon, value }: { href: string; icon: ReactNode; va
       <div className="flex items-center justify-center text-[#d9c17a]">{icon}</div>
       <div className="text-center text-xl font-medium">{value.toLocaleString("zh-CN")}</div>
       <Link
-        aria-label="充值"
+        aria-label="添加演示资源"
         className="flex h-full items-center justify-center border-l border-white/15 bg-white/8 transition hover:bg-white/14"
         href={href}
       >
         <Plus size={22} />
       </Link>
     </div>
-  );
-}
-
-function IconLabel({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <button
-      className="flex flex-col items-center gap-2 text-white/88 transition hover:text-white"
-      type="button"
-    >
-      <span className="flex h-16 w-16 items-center justify-center rounded-full border border-white/50 bg-black/20">
-        {icon}
-      </span>
-      <span className="text-base font-medium">{label}</span>
-    </button>
   );
 }
 
@@ -710,7 +686,7 @@ function PullButton({
         <span className="flex items-center gap-1 text-sm font-medium lg:gap-2 lg:text-lg">
           <Gem size={24} />× {count}
         </span>
-        <span>{pending ? "同步中" : recoverable ? "恢复结果" : `共鸣${count}次`}</span>
+        <span>{pending ? "同步中" : recoverable ? "恢复结果" : `抽取${count}次`}</span>
       </div>
     </button>
   );
@@ -863,10 +839,6 @@ function normalizePendingGachaPull(value: unknown): PendingGachaPull | null {
   }
 
   if (typeof createdAt !== "number" || !Number.isFinite(createdAt)) {
-    return null;
-  }
-
-  if (Date.now() - createdAt > GACHA_PENDING_PULL_TTL_MS) {
     return null;
   }
 

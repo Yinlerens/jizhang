@@ -2,20 +2,54 @@
 
 import { randomUUID } from "node:crypto";
 
-import { pullGacha, type GatewayPitySnapshot, type GatewayPullRecord } from "@/lib/gateway/gacha";
+import {
+  getGachaPullOperation,
+  pullGacha,
+  type GatewayPitySnapshot,
+  type GatewayPullRecord,
+  type PullGachaResponse,
+} from "@/lib/gateway/gacha";
 import { GatewayFetchError } from "@/lib/gateway/client";
-import { getAuditLogDetail } from "@/lib/gateway/audit";
+import {
+  shouldPreservePullOperation,
+  shouldPreservePullRecoveryLookup,
+} from "@/lib/gacha/pull-recovery";
+import { getAuditLogDetail, listAuditLogs } from "@/lib/gateway/audit";
+import { getAssetAccount } from "@/lib/gateway/assets";
 import {
   getBackpackInventory,
   getBackpackPullEvent,
+  getBackpackPullEvents,
   getBackpackPullRecords,
   type BackpackInventoryItem,
   type BackpackPullEvent,
   type BackpackPullRecord,
 } from "@/lib/gateway/backpack";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedSession } from "@/lib/supabase/server";
 import { toGachaTraceAuditSnapshot } from "@/lib/trace/gacha-audit";
-import type { GachaTraceAuditSnapshot } from "@/lib/trace/gacha-run";
+import {
+  compareGachaHistoricalTraces,
+  createGachaHistoricalTrace,
+  selectGachaTraceBaseline,
+  toGachaTraceHistoryEntry,
+  type GachaHistoricalTrace,
+  type GachaTraceComparison,
+  type GachaTraceHistoryEntry,
+} from "@/lib/trace/gacha-history";
+import {
+  createGachaConcurrencyPlan,
+  summarizeGachaConcurrencyBatch,
+  validateGachaConcurrencyInput,
+  type GachaConcurrencyBatch,
+  type GachaConcurrencyInput,
+  type GachaConcurrencyRequestResult,
+} from "@/lib/trace/gacha-concurrency";
+import {
+  KAFKA_MONITOR_CONSUMER_GROUP,
+  KAFKA_MONITOR_TOPIC,
+  type KafkaMonitorSignal,
+} from "@/lib/trace/kafka-monitor";
+import { reduceGachaTrace, type GachaTraceAuditSnapshot } from "@/lib/trace/gacha-run";
 
 export type PullGachaActionResult =
   | {
@@ -31,7 +65,23 @@ export type PullGachaActionResult =
       requestId: string;
       message: string;
       code?: string;
+      httpStatus?: number;
+      preserveOperation: boolean;
     };
+
+type PullGachaActionInput = {
+  bannerId: string;
+  count: 1 | 10;
+  idempotencyKey: string;
+  requestId?: string;
+};
+
+type NormalizedPullGachaActionInput = {
+  bannerId: string;
+  count: 1 | 10;
+  idempotencyKey: string;
+  requestId: string;
+};
 
 export type BackpackSyncActionResult =
   | {
@@ -62,103 +112,483 @@ export type GachaTraceAuditActionResult =
   | { ok: true; audit: GachaTraceAuditSnapshot }
   | { ok: false; message: string };
 
-export async function drawGachaPull({
-  bannerId,
-  count,
-  idempotencyKey,
-  requestId,
-}: {
-  bannerId: string;
-  count: 1 | 10;
-  idempotencyKey: string;
-  requestId?: string;
-}): Promise<PullGachaActionResult> {
-  const normalizedRequestId = normalizeRequestId(requestId);
-  const normalizedBannerId = typeof bannerId === "string" ? bannerId.trim() : "";
-  if (!normalizedBannerId || normalizedBannerId.length > 100) {
-    return {
-      ok: false,
-      requestId: normalizedRequestId,
-      code: "invalid_banner_id",
-      message: "卡池 ID 不合法，请刷新页面后重试。",
-    };
+export type SandboxInitialStateResult =
+  | {
+      ok: true;
+      balanceMinor?: number;
+      history: Array<{
+        id: string;
+        itemId: string;
+        itemName: string;
+        rarity: 3 | 4 | 5;
+        isFeatured: boolean;
+      }>;
+    }
+  | { ok: false; message: string };
+
+export type GachaTraceHistoryActionResult =
+  | { ok: true; entries: GachaTraceHistoryEntry[] }
+  | { ok: false; message: string };
+
+export type HistoricalGachaTraceActionResult =
+  | { ok: true; trace: GachaHistoricalTrace }
+  | { ok: false; message: string };
+
+export type HistoricalGachaComparisonActionResult =
+  | { ok: true; comparison: GachaTraceComparison }
+  | { ok: false; message: string };
+
+export type GachaConcurrencyActionResult =
+  | { ok: true; batch: GachaConcurrencyBatch }
+  | { ok: false; code: string; message: string };
+
+export type KafkaTopicMonitorActionResult =
+  | { ok: true; observedAt: string; signals: KafkaMonitorSignal[] }
+  | { ok: false; code: string; message: string };
+
+export async function loadSandboxInitialState(): Promise<SandboxInitialStateResult> {
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return { ok: false, message: "登录状态已失效。" };
   }
 
-  if (count !== 1 && count !== 10) {
-    return {
-      ok: false,
-      requestId: normalizedRequestId,
-      code: "invalid_pull_count",
-      message: "只能执行 1 抽或 10 抽。",
-    };
-  }
+  const [accountResult, recordsResult] = await Promise.allSettled([
+    getAssetAccount(session.access_token),
+    getBackpackPullRecords({ accessToken: session.access_token, limit: 10 }),
+  ]);
 
-  const normalizedIdempotencyKey =
-    typeof idempotencyKey === "string" ? idempotencyKey.trim() : "";
-  if (!isUuidLike(normalizedIdempotencyKey)) {
-    return {
-      ok: false,
-      requestId: normalizedRequestId,
-      code: "invalid_idempotency_key",
-      message: "抽卡请求标识不合法，请刷新页面后重试。",
-    };
-  }
+  return {
+    ok: true,
+    balanceMinor:
+      accountResult.status === "fulfilled" ? accountResult.value.balance_minor : undefined,
+    history:
+      recordsResult.status === "fulfilled"
+        ? recordsResult.value.items.map((record) => ({
+            id: record.id,
+            itemId: record.item_id,
+            itemName: record.item_name,
+            rarity: record.rarity,
+            isFeatured: record.is_featured,
+          }))
+        : [],
+  };
+}
 
-  const supabase = await createClient();
-  const [
-    {
-      data: { session },
-    },
-    {
-      data: { user },
-    },
-  ] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
-
+export async function loadKafkaTopicMonitor(): Promise<KafkaTopicMonitorActionResult> {
+  const { user, session } = await getAuthenticatedSession();
   if (!user || !session?.access_token) {
     return {
       ok: false,
-      requestId: normalizedRequestId,
       code: "next_auth_missing",
       message: "登录状态已失效，请重新登录。",
     };
   }
 
   try {
-    const result = await pullGachaWithRetry({
+    const events = await getBackpackPullEvents({
       accessToken: session.access_token,
-      bannerId: normalizedBannerId,
-      count,
-      idempotencyKey: normalizedIdempotencyKey,
-      requestId: normalizedRequestId,
+      limit: 100,
     });
 
     return {
       ok: true,
-      requestId: result.requestId,
-      eventId: result.data.event_id,
-      records: result.data.records,
-      nextPity: result.data.next_pity,
-      stateVersion: result.data.state_version,
+      observedAt: new Date().toISOString(),
+      signals: events.items.map((event) => ({
+        requestId: null,
+        eventId: event.event_id,
+        stage: "consumed",
+        at: event.received_at,
+        stateVersion: event.state_version,
+        errorCode: null,
+        payload: {
+          topic: KAFKA_MONITOR_TOPIC,
+          consumer_group: KAFKA_MONITOR_CONSUMER_GROUP,
+          event_id: event.event_id,
+          event_type: event.event_type,
+          banner_id: event.banner_id,
+          state_version: event.state_version,
+          previous_pity: event.previous_pity,
+          next_pity: event.next_pity,
+          received_at: event.received_at,
+        },
+      })),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code:
+        error instanceof GatewayFetchError
+          ? error.code ?? "kafka_monitor_unavailable"
+          : "kafka_monitor_unavailable",
+      message: error instanceof Error ? error.message : "Kafka 消息状态暂不可用。",
+    };
+  }
+}
+
+export async function drawGachaPull(
+  input: PullGachaActionInput,
+): Promise<PullGachaActionResult> {
+  const validation = validatePullGachaActionInput(input);
+  if (!validation.ok) {
+    return validation.result;
+  }
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return {
+      ok: false,
+      requestId: validation.value.requestId,
+      code: "next_auth_missing",
+      message: "登录状态已失效，请重新登录。",
+      preserveOperation: false,
+    };
+  }
+
+  return executeAuthenticatedPull({
+    ...validation.value,
+    accessToken: session.access_token,
+  });
+}
+
+export async function recoverGachaPull(
+  input: PullGachaActionInput,
+): Promise<PullGachaActionResult> {
+  const validation = validatePullGachaActionInput(input);
+  if (!validation.ok) {
+    return validation.result;
+  }
+
+  const pullInput = validation.value;
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return {
+      ok: false,
+      requestId: pullInput.requestId,
+      code: "next_auth_missing",
+      message: "登录状态已失效；登录后仍可继续确认上一笔抽卡。",
+      preserveOperation: true,
+    };
+  }
+
+  try {
+    const operationResult = await getGachaPullOperation({
+      accessToken: session.access_token,
+      idempotencyKey: pullInput.idempotencyKey,
+      requestId: pullInput.requestId,
+    });
+    const operation = operationResult.data;
+
+    if (operation.status === "succeeded" || operation.status === "event_published") {
+      if (!operation.response) {
+        return {
+          ok: false,
+          requestId: operationResult.requestId,
+          code: "pull_operation_incomplete",
+          message: "服务器已完成抽卡，但结果暂时无法读取，请稍后再次确认。",
+          preserveOperation: true,
+        };
+      }
+      return toSuccessfulPullResult(operation.response, operationResult.requestId);
+    }
+
+    if (operation.status === "failed") {
+      return {
+        ok: false,
+        requestId: operationResult.requestId,
+        code: operation.error?.code ?? "pull_failed",
+        httpStatus: 409,
+        message: operation.error?.message ?? "上一笔抽卡已明确失败，可以重新发起。",
+        preserveOperation: false,
+      };
+    }
+
+    if (operation.status === "processing") {
+      return {
+        ok: false,
+        requestId: operationResult.requestId,
+        code: "pull_in_progress",
+        httpStatus: 409,
+        message: "上一笔抽卡仍在服务器处理中，请稍后再次确认。",
+        preserveOperation: true,
+      };
+    }
+
+    if (
+      operation.status === "event_pending" || operation.status === "refund_pending"
+    ) {
+      return executeAuthenticatedPull({
+        ...pullInput,
+        accessToken: session.access_token,
+        requestId: randomUUID(),
+      });
+    }
+
+    return {
+      ok: false,
+      requestId: operationResult.requestId,
+      code: "pull_operation_unknown_status",
+      message: "服务器返回了无法识别的抽卡状态，系统已停止自动恢复。",
+      preserveOperation: true,
     };
   } catch (error) {
     if (error instanceof GatewayFetchError) {
+      const preserveOperation = shouldPreservePullRecoveryLookup({
+        code: error.code,
+        httpStatus: error.status,
+      });
+      const operationNotFound = !preserveOperation;
       return {
         ok: false,
-        requestId: error.requestId ?? normalizedRequestId,
-        code: error.code,
-        message:
-          error.code === "kafka_unavailable"
-            ? "抽卡结果已生成但暂未同步，请再次点击同一卡池同一抽数恢复结果。"
-            : error.message,
+        requestId: error.requestId ?? pullInput.requestId,
+        code: operationNotFound ? "pull_operation_not_found" : error.code,
+        httpStatus: error.status,
+        message: operationNotFound
+          ? "服务器已找不到上一笔操作，系统没有自动重抽；请再次点击发起一笔新抽卡。"
+          : error.message,
+        preserveOperation,
       };
     }
 
     return {
       ok: false,
-      requestId: normalizedRequestId,
-      message: error instanceof Error ? error.message : "抽取失败，请稍后重试。",
+      requestId: pullInput.requestId,
+      message: error instanceof Error ? error.message : "上一笔抽卡状态暂时无法确认。",
+      preserveOperation: true,
     };
   }
+}
+
+async function executeAuthenticatedPull({
+  accessToken,
+  bannerId,
+  count,
+  idempotencyKey,
+  requestId,
+}: NormalizedPullGachaActionInput & { accessToken: string }): Promise<PullGachaActionResult> {
+  try {
+    const result = await pullGachaWithRetry({
+      accessToken,
+      bannerId,
+      count,
+      idempotencyKey,
+      requestId,
+    });
+    return toSuccessfulPullResult(result.data, result.requestId);
+  } catch (error) {
+    if (error instanceof GatewayFetchError) {
+      return {
+        ok: false,
+        requestId: error.requestId ?? requestId,
+        code: error.code,
+        httpStatus: error.status,
+        message:
+          error.code === "kafka_unavailable"
+            ? "抽卡结果已生成但暂未同步，请再次点击同一卡池同一抽数恢复结果。"
+            : error.message,
+        preserveOperation: shouldPreservePullOperation({
+          code: error.code,
+          httpStatus: error.status,
+        }),
+      };
+    }
+
+    return {
+      ok: false,
+      requestId,
+      message: error instanceof Error ? error.message : "抽取失败，请稍后重试。",
+      preserveOperation: true,
+    };
+  }
+}
+
+function toSuccessfulPullResult(
+  data: PullGachaResponse,
+  requestId: string,
+): PullGachaActionResult {
+  return {
+    ok: true,
+    requestId,
+    eventId: data.event_id,
+    records: data.records,
+    nextPity: data.next_pity,
+    stateVersion: data.state_version,
+  };
+}
+
+function validatePullGachaActionInput(
+  input: PullGachaActionInput,
+):
+  | { ok: true; value: NormalizedPullGachaActionInput }
+  | { ok: false; result: PullGachaActionResult } {
+  const requestId = normalizeRequestId(input.requestId);
+  const bannerId = typeof input.bannerId === "string" ? input.bannerId.trim() : "";
+  if (!bannerId || bannerId.length > 100) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        requestId,
+        code: "invalid_banner_id",
+        message: "卡池 ID 不合法，请刷新页面后重试。",
+        preserveOperation: false,
+      },
+    };
+  }
+
+  if (input.count !== 1 && input.count !== 10) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        requestId,
+        code: "invalid_pull_count",
+        message: "只能执行 1 抽或 10 抽。",
+        preserveOperation: false,
+      },
+    };
+  }
+
+  const idempotencyKey =
+    typeof input.idempotencyKey === "string" ? input.idempotencyKey.trim() : "";
+  if (!isUuidLike(idempotencyKey)) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        requestId,
+        code: "invalid_idempotency_key",
+        message: "抽卡请求标识不合法，请刷新页面后重试。",
+        preserveOperation: false,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      bannerId,
+      count: input.count,
+      idempotencyKey,
+      requestId,
+    },
+  };
+}
+
+export async function runGachaConcurrencyBatch(
+  input: GachaConcurrencyInput,
+): Promise<GachaConcurrencyActionResult> {
+  const validation = validateGachaConcurrencyInput(input);
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return {
+      ok: false,
+      code: "next_auth_missing",
+      message: "登录状态已失效，请重新登录。",
+    };
+  }
+
+  const batchId = randomUUID();
+  const balanceBeforeMinor = await readAssetBalance(session.access_token);
+  const batchStartedAt = Date.now();
+  const plan = createGachaConcurrencyPlan(validation.value, randomUUID);
+  const requests = await Promise.all(
+    plan.map(async (planned) => {
+      if (planned.delayMs > 0) {
+        await delay(planned.delayMs);
+      }
+
+      const startedAt = Date.now();
+      try {
+        const result = await pullGacha({
+          accessToken: session.access_token,
+          bannerId: validation.value.bannerId,
+          count: validation.value.count,
+          idempotencyKey: planned.idempotencyKey,
+          requestId: planned.requestId,
+        });
+        const finishedAt = Date.now();
+
+        return {
+          sequence: planned.sequence,
+          requestId: result.requestId,
+          idempotencyKey: planned.idempotencyKey,
+          startedAt: new Date(startedAt).toISOString(),
+          finishedAt: new Date(finishedAt).toISOString(),
+          durationMs: Math.max(0, finishedAt - startedAt),
+          ok: true,
+          httpStatus: 200,
+          errorCode: null,
+          errorMessage: null,
+          eventId: result.data.event_id,
+          stateVersion: result.data.state_version,
+          nextPity: result.data.next_pity,
+          records: result.data.records.map((record) => ({
+            id: record.id,
+            itemId: record.item_id,
+            itemName: record.item_name,
+            itemType: record.item_type,
+            rarity: record.rarity,
+            isFeatured: record.is_featured,
+          })),
+          audit: null,
+        } satisfies GachaConcurrencyRequestResult;
+      } catch (error) {
+        const finishedAt = Date.now();
+        return {
+          sequence: planned.sequence,
+          requestId:
+            error instanceof GatewayFetchError
+              ? error.requestId ?? planned.requestId
+              : planned.requestId,
+          idempotencyKey: planned.idempotencyKey,
+          startedAt: new Date(startedAt).toISOString(),
+          finishedAt: new Date(finishedAt).toISOString(),
+          durationMs: Math.max(0, finishedAt - startedAt),
+          ok: false,
+          httpStatus: error instanceof GatewayFetchError ? error.status : null,
+          errorCode:
+            error instanceof GatewayFetchError
+              ? error.code ?? "gateway_request_failed"
+              : "unknown_error",
+          errorMessage:
+            error instanceof Error ? error.message : "并发抽卡请求失败。",
+          eventId: null,
+          stateVersion: null,
+          records: [],
+          audit: null,
+        } satisfies GachaConcurrencyRequestResult;
+      }
+    }),
+  );
+  const batchFinishedAt = Date.now();
+  const [balanceAfterMinor, requestsWithAudit] = await Promise.all([
+    readAssetBalance(session.access_token),
+    attachConcurrencyAudits(session.access_token, requests),
+  ]);
+
+  return {
+    ok: true,
+    batch: {
+      batchId,
+      bannerId: validation.value.bannerId,
+      count: validation.value.count,
+      mode: validation.value.mode,
+      requestCount: validation.value.requestCount,
+      intervalMs: validation.value.intervalMs,
+      startedAt: new Date(batchStartedAt).toISOString(),
+      finishedAt: new Date(batchFinishedAt).toISOString(),
+      durationMs: Math.max(0, batchFinishedAt - batchStartedAt),
+      requests: requestsWithAudit,
+      summary: summarizeGachaConcurrencyBatch(
+        requestsWithAudit,
+        balanceBeforeMinor,
+        balanceAfterMinor,
+      ),
+    },
+  };
 }
 
 async function pullGachaWithRetry({
@@ -179,14 +609,13 @@ async function pullGachaWithRetry({
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const data = await pullGacha({
+      return await pullGacha({
         accessToken,
         bannerId,
         count,
         idempotencyKey,
         requestId: activeRequestId,
       });
-      return { data, requestId: activeRequestId };
     } catch (error) {
       lastError = error;
       if (!(error instanceof GatewayFetchError) || error.code !== "kafka_unavailable") {
@@ -210,15 +639,7 @@ export async function loadGachaTraceAudit({
     return { ok: false, message: "请求编号不合法。" };
   }
 
-  const supabase = await createClient();
-  const [
-    {
-      data: { session },
-    },
-    {
-      data: { user },
-    },
-  ] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+  const { user, session } = await getAuthenticatedSession();
 
   if (!user || !session?.access_token) {
     return { ok: false, message: "登录状态已失效。" };
@@ -231,6 +652,126 @@ export async function loadGachaTraceAudit({
     return {
       ok: false,
       message: error instanceof Error ? error.message : "请求审计详情暂不可用。",
+    };
+  }
+}
+
+export async function loadGachaTraceHistory(): Promise<GachaTraceHistoryActionResult> {
+  const { user, session } = await getAuthenticatedSession();
+
+  if (!user || !session?.access_token) {
+    return { ok: false, message: "登录状态已失效。" };
+  }
+
+  try {
+    const response = await listAuditLogs(session.access_token, {
+      limit: "50",
+      method: "POST",
+      path: GACHA_PULL_PATH,
+    });
+    const entries = response.data
+      .filter(isGachaPullAudit)
+      .map(toGachaTraceHistoryEntry);
+
+    return { ok: true, entries };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "历史调用暂时不可用。",
+    };
+  }
+}
+
+export async function loadHistoricalGachaTrace({
+  requestId,
+}: {
+  requestId: string;
+}): Promise<HistoricalGachaTraceActionResult> {
+  const normalizedRequestId = requestId.trim();
+  if (!isUuidLike(normalizedRequestId)) {
+    return { ok: false, message: "请输入完整有效的 Request ID。" };
+  }
+
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return { ok: false, message: "登录状态已失效。" };
+  }
+
+  try {
+    const detail = await getAuditLogDetail(session.access_token, normalizedRequestId);
+    if (!isGachaPullAudit(detail)) {
+      return { ok: false, message: "该 Request ID 不是抽卡调用。" };
+    }
+
+    const trace = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(detail));
+    return {
+      ok: true,
+      trace: await enrichHistoricalBackpackTrace(session.access_token, trace),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "历史调用加载失败。",
+    };
+  }
+}
+
+export async function compareHistoricalGachaTrace({
+  requestId,
+}: {
+  requestId: string;
+}): Promise<HistoricalGachaComparisonActionResult> {
+  const normalizedRequestId = requestId.trim();
+  if (!isUuidLike(normalizedRequestId)) {
+    return { ok: false, message: "请输入完整有效的 Request ID。" };
+  }
+
+  const { user, session } = await getAuthenticatedSession();
+  if (!user || !session?.access_token) {
+    return { ok: false, message: "登录状态已失效。" };
+  }
+
+  try {
+    const targetDetailPromise = getAuditLogDetail(session.access_token, normalizedRequestId);
+    const historyPromise = listAuditLogs(session.access_token, {
+      limit: "100",
+      method: "POST",
+      path: GACHA_PULL_PATH,
+    });
+    const [targetDetail, history] = await Promise.all([targetDetailPromise, historyPromise]);
+
+    if (!isGachaPullAudit(targetDetail)) {
+      return { ok: false, message: "该 Request ID 不是抽卡调用。" };
+    }
+
+    const target = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(targetDetail));
+    const candidates = history.data
+      .filter(isGachaPullAudit)
+      .map(toGachaTraceHistoryEntry);
+    const baselineEntry = selectGachaTraceBaseline(target.entry, candidates);
+
+    if (!baselineEntry) {
+      return { ok: false, message: "没有找到同卡池、同抽数的成功调用。" };
+    }
+
+    const baselineDetail = await getAuditLogDetail(
+      session.access_token,
+      baselineEntry.requestId,
+    );
+    const baseline = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(baselineDetail));
+    const [enrichedTarget, enrichedBaseline] = await Promise.all([
+      enrichHistoricalBackpackTrace(session.access_token, target),
+      enrichHistoricalBackpackTrace(session.access_token, baseline),
+    ]);
+
+    return {
+      ok: true,
+      comparison: compareGachaHistoricalTraces(enrichedTarget, enrichedBaseline),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "调用对比失败。",
     };
   }
 }
@@ -250,12 +791,9 @@ export async function syncGachaBackpackAfterPull({
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { user, session } = await getAuthenticatedSession();
 
-  if (!session?.access_token) {
+  if (!user || !session?.access_token) {
     return {
       ok: false,
       state: "error",
@@ -332,6 +870,45 @@ function isRetryablePullEventError(error: unknown) {
   return error instanceof GatewayFetchError && error.status === 404;
 }
 
+async function readAssetBalance(accessToken: string) {
+  try {
+    const account = await getAssetAccount(accessToken);
+    return account.balance_minor;
+  } catch {
+    return null;
+  }
+}
+
+async function attachConcurrencyAudits(
+  accessToken: string,
+  requests: GachaConcurrencyRequestResult[],
+) {
+  return Promise.all(
+    requests.map(async (request) => {
+      const audit = await loadConcurrencyAudit(accessToken, request.requestId);
+      return audit ? { ...request, audit } : request;
+    }),
+  );
+}
+
+async function loadConcurrencyAudit(accessToken: string, requestId: string) {
+  const retryDelaysMs = [0, 150, 350] as const;
+
+  for (const retryDelayMs of retryDelaysMs) {
+    if (retryDelayMs > 0) {
+      await delay(retryDelayMs);
+    }
+    try {
+      const detail = await getAuditLogDetail(accessToken, requestId);
+      return toGachaTraceAuditSnapshot(detail);
+    } catch {
+      // Audit persistence can trail the gateway response by a few hundred milliseconds.
+    }
+  }
+
+  return null;
+}
+
 function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -345,4 +922,83 @@ function isUuidLike(value: string) {
 function normalizeRequestId(value: string | undefined) {
   const normalized = typeof value === "string" ? value.trim() : "";
   return isUuidLike(normalized) ? normalized : randomUUID();
+}
+
+const GACHA_PULL_PATH = "/api/v1/gacha/me/pulls";
+
+function isGachaPullAudit(item: { path: string }) {
+  return item.path === GACHA_PULL_PATH || item.path.endsWith(GACHA_PULL_PATH);
+}
+
+async function enrichHistoricalBackpackTrace(
+  accessToken: string,
+  trace: GachaHistoricalTrace,
+): Promise<GachaHistoricalTrace> {
+  if (!trace.run.eventId || trace.entry.outcome !== "success") {
+    return trace;
+  }
+
+  const startedAt = trace.run.nodes.backpack.startedAt ?? trace.run.startedAt;
+
+  try {
+    const detail = await getBackpackPullEvent({
+      accessToken,
+      eventId: trace.run.eventId,
+    });
+    const receivedAt = Date.parse(detail.event.received_at);
+    const run = reduceGachaTrace(trace.run, {
+      type: "backpack_succeeded",
+      at: Number.isFinite(receivedAt) ? receivedAt : startedAt,
+      result: {
+        event: {
+          eventId: detail.event.event_id,
+          eventType: detail.event.event_type,
+          bannerId: detail.event.banner_id,
+          stateVersion: detail.event.state_version,
+          receivedAt: detail.event.received_at,
+        },
+        eventRecords: detail.records.map((record) => ({
+          id: record.id,
+          itemId: record.item_id,
+          itemName: record.item_name,
+          itemType: record.item_type,
+          rarity: record.rarity,
+          isFeatured: record.is_featured,
+        })),
+        historyCount: detail.records.length,
+        inventory: {
+          distinctItemCount: new Set(detail.records.map((record) => record.item_id)).size,
+          totalQuantity: detail.records.length,
+        },
+      },
+    });
+    return { ...trace, run };
+  } catch (error) {
+    if (isRetryablePullEventError(error)) {
+      return {
+        ...trace,
+        run: reduceGachaTrace(trace.run, {
+          type: "backpack_pending",
+          at: startedAt,
+          attempts: 1,
+          retryAfterMs: 3_000,
+          message: "历史抽卡事件尚未在 Backpack 中找到。",
+        }),
+      };
+    }
+
+    return {
+      ...trace,
+      run: reduceGachaTrace(trace.run, {
+        type: "backpack_failed",
+        at: startedAt,
+        code:
+          error instanceof GatewayFetchError
+            ? error.code ?? "backpack_history_lookup_failed"
+            : "backpack_history_lookup_failed",
+        httpStatus: error instanceof GatewayFetchError ? error.status : undefined,
+        message: error instanceof Error ? error.message : "Backpack 历史状态查询失败。",
+      }),
+    };
+  }
 }

@@ -10,9 +10,11 @@ type RarityRateKey = {
 };
 
 export async function deleteRarityRate(banner_version_id: string, rarity: number) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("rarity_rates")
     .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
     .eq("banner_version_id", banner_version_id)
     .eq("rarity", rarity);
   if (error) throw new Error(error.message);
@@ -27,16 +29,24 @@ export async function deleteRarityRates(keys: RarityRateKey[]) {
     ]),
     "基础概率",
   );
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("rarity_rates").delete().or(filter);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("rarity_rates")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
+    .or(filter);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/rarity-rates");
 }
 
 export async function upsertRarityRate(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   
   const payload = {
+    project_id: context.project.id,
+    environment_id: context.environment.id,
     banner_version_id: formData.get("banner_version_id") as string,
     rarity: parseInt(formData.get("rarity") as string),
     base_rate_ppm: parseInt(formData.get("base_rate_ppm") as string),

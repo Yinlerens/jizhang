@@ -3,10 +3,10 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { creditAssets, getAssetLedger, type LedgerEntry } from "@/lib/gateway/assets";
-import { RECHARGE_TIERS, formatAssetAmount } from "@/lib/recharge/tiers";
-import { createClient } from "@/lib/supabase/server";
+import { SANDBOX_RESOURCE_GRANTS, formatAssetAmount } from "@/lib/sandbox/resource-grants";
+import { getAuthenticatedSession } from "@/lib/supabase/server";
 
-export type RechargeActionResult =
+export type ResourceGrantActionResult =
   | {
       ok: true;
       message: string;
@@ -29,21 +29,20 @@ export type LedgerActionResult =
       message: string;
     };
 
-export async function rechargeTier(tierId: string): Promise<RechargeActionResult> {
-  const tier = RECHARGE_TIERS.find((item) => item.id === tierId);
-  if (!tier) {
+export async function grantSandboxResources(
+  grantId: string,
+): Promise<ResourceGrantActionResult> {
+  const grant = SANDBOX_RESOURCE_GRANTS.find((item) => item.id === grantId);
+  if (!grant) {
     return {
       ok: false,
-      message: "充值档位不存在，请刷新页面后重试。",
+      message: "资源预设不存在，请刷新页面后重试。",
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { user, session } = await getAuthenticatedSession();
 
-  if (!session?.access_token) {
+  if (!user || !session?.access_token) {
     return {
       ok: false,
       message: "登录状态已失效，请重新登录。",
@@ -53,41 +52,39 @@ export async function rechargeTier(tierId: string): Promise<RechargeActionResult
   try {
     const result = await creditAssets({
       accessToken: session.access_token,
-      amountMinor: tier.amountMinor,
-      idempotencyKey: `topup:${tier.id}:${randomUUID()}`,
-      reason: "topup",
+      amountMinor: grant.amountMinor,
+      idempotencyKey: `sandbox-grant:${grant.id}:${randomUUID()}`,
+      reason: "sandbox_grant",
       metadata: {
-        source: "frontend",
-        tier_id: tier.id,
-        price_label: tier.priceLabel,
-        title: tier.title,
+        source: "sandbox",
+        grant_id: grant.id,
+        title: grant.title,
       },
     });
 
     revalidatePath("/");
+    revalidatePath("/sandbox");
+    revalidatePath("/sandbox/resources");
     revalidatePath("/recharge");
 
     return {
       ok: true,
       balanceMinor: result.account.balance_minor,
       entry: result.entry,
-      message: `已充值 ${formatAssetAmount(tier.amountMinor)}，当前余额 ${formatAssetAmount(result.account.balance_minor)}。`,
+      message: `已发放 ${formatAssetAmount(grant.amountMinor)} 演示资源，当前余额 ${formatAssetAmount(result.account.balance_minor)}。`,
     };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "充值失败，请稍后重试。",
+      message: error instanceof Error ? error.message : "资源发放失败，请稍后重试。",
     };
   }
 }
 
 export async function loadAssetLedgerPage(cursor?: string): Promise<LedgerActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { user, session } = await getAuthenticatedSession();
 
-  if (!session?.access_token) {
+  if (!user || !session?.access_token) {
     return {
       ok: false,
       message: "登录状态已失效，请重新登录。",

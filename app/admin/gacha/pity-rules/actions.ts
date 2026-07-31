@@ -10,9 +10,11 @@ type PityRuleKey = {
 };
 
 export async function deletePityRule(banner_version_id: string, rarity: number) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("pity_rules")
     .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
     .eq("banner_version_id", banner_version_id)
     .eq("rarity", rarity);
   if (error) throw new Error(error.message);
@@ -27,17 +29,25 @@ export async function deletePityRules(keys: PityRuleKey[]) {
     ]),
     "水位规则",
   );
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("pity_rules").delete().or(filter);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("pity_rules")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
+    .or(filter);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/pity-rules");
 }
 
 export async function upsertPityRule(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   
   const soft_pity_start = formData.get("soft_pity_start") as string;
   const payload = {
+    project_id: context.project.id,
+    environment_id: context.environment.id,
     banner_version_id: formData.get("banner_version_id") as string,
     rarity: parseInt(formData.get("rarity") as string),
     counter_key: formData.get("counter_key") as string,

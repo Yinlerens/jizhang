@@ -3,6 +3,7 @@ export type GachaRarity = 3 | 4 | 5;
 export type JsonObject = Record<string, unknown>;
 
 export interface GachaItemRow {
+  project_id: string;
   id: string;
   name: string;
   subtitle: string;
@@ -22,6 +23,7 @@ export interface GachaItemRow {
 }
 
 export interface GachaBannerRow {
+  project_id: string;
   id: string;
   name: string;
   short_name: string;
@@ -40,6 +42,8 @@ export interface GachaBannerRow {
 }
 
 export interface GachaBannerVersionRow {
+  project_id: string;
+  environment_id: string;
   id: string;
   banner_id: string;
   rule_set_id: string | null;
@@ -54,6 +58,7 @@ export interface GachaBannerVersionRow {
 }
 
 export interface GachaRuleSetRow {
+  project_id: string;
   id: string;
   name: string;
   description: string;
@@ -65,6 +70,7 @@ export interface GachaRuleSetRow {
 }
 
 export interface GachaRuleSetRarityRateRow {
+  project_id: string;
   rule_set_id: string;
   rarity: GachaRarity;
   base_rate_ppm: number;
@@ -74,6 +80,7 @@ export interface GachaRuleSetRarityRateRow {
 }
 
 export interface GachaRuleSetFeaturedRuleRow {
+  project_id: string;
   rule_set_id: string;
   rarity: 4 | 5;
   featured_group: 'five_up' | 'four_up';
@@ -86,6 +93,7 @@ export interface GachaRuleSetFeaturedRuleRow {
 }
 
 export interface GachaRuleSetPityRuleRow {
+  project_id: string;
   rule_set_id: string;
   rarity: 4 | 5;
   counter_key: string;
@@ -98,6 +106,8 @@ export interface GachaRuleSetPityRuleRow {
 }
 
 export interface GachaBannerItemRow {
+  project_id: string;
+  environment_id: string;
   banner_version_id: string;
   item_id: string;
   pool_group: 'standard' | 'featured';
@@ -109,6 +119,8 @@ export interface GachaBannerItemRow {
 }
 
 export interface GachaRarityRateRow {
+  project_id: string;
+  environment_id: string;
   banner_version_id: string;
   rarity: GachaRarity;
   base_rate_ppm: number;
@@ -118,6 +130,8 @@ export interface GachaRarityRateRow {
 }
 
 export interface GachaFeaturedRuleRow {
+  project_id: string;
+  environment_id: string;
   banner_version_id: string;
   rarity: 4 | 5;
   featured_group: 'five_up' | 'four_up';
@@ -130,6 +144,8 @@ export interface GachaFeaturedRuleRow {
 }
 
 export interface GachaPityRuleRow {
+  project_id: string;
+  environment_id: string;
   banner_version_id: string;
   rarity: 4 | 5;
   counter_key: string;

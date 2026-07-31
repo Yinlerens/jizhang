@@ -17,22 +17,32 @@ const bannerImageExtensions: Record<string, string> = {
 const maxBannerImageBytes = 8 * 1024 * 1024;
 
 export async function deleteBanner(id: string) {
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("banners").delete().eq("id", id);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("banners")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/banners");
 }
 
 export async function deleteBanners(ids: string[]) {
   const bannerIds = normalizeBulkTextValues(ids, "卡池");
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("banners").delete().in("id", bannerIds);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("banners")
+    .delete()
+    .eq("project_id", context.project.id)
+    .in("id", bannerIds);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/banners");
 }
 
 export async function uploadBannerImage(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const field = getString(formData, "field", 80);
   const file = formData.get("file");
 
@@ -61,7 +71,7 @@ export async function uploadBannerImage(formData: FormData) {
 
   const bucket = process.env.GACHA_ASSET_BUCKET ?? process.env.SUPABASE_STORAGE_BUCKET ?? "gacha-assets";
   const folder = field === "cover_image_url" ? "covers" : "backgrounds";
-  const path = `gacha/banners/${folder}/${randomUUID()}.${extension}`;
+  const path = `gacha/projects/${context.project.id}/banners/${folder}/${randomUUID()}.${extension}`;
   const bytes = Buffer.from(await file.arrayBuffer());
   const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
     cacheControl: "31536000",
@@ -82,7 +92,7 @@ export async function uploadBannerImage(formData: FormData) {
 }
 
 export async function upsertBanner(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
 
   const existingId = getString(formData, "id", 100);
   const name = getString(formData, "name", 120);
@@ -97,6 +107,7 @@ export async function upsertBanner(formData: FormData) {
   }
 
   const payload = {
+    project_id: context.project.id,
     id: existingId || createBannerId(bannerType),
     name,
     short_name: getString(formData, "short_name", 80),

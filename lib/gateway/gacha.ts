@@ -33,6 +33,23 @@ export type PullGachaResponse = {
   state_version: number;
 };
 
+export type GatewayPullOperationStatus =
+  | "processing"
+  | "event_pending"
+  | "event_published"
+  | "succeeded"
+  | "refund_pending"
+  | "failed";
+
+export type GatewayPullOperationResponse = {
+  status: GatewayPullOperationStatus;
+  response: PullGachaResponse | null;
+  error: {
+    code: string;
+    message: string;
+  } | null;
+};
+
 export async function pullGacha({
   accessToken,
   bannerId,
@@ -59,7 +76,35 @@ export async function pullGacha({
     }),
   });
 
-  return (await response.json()) as PullGachaResponse;
+  const data = (await response.json()) as PullGachaResponse;
+  return {
+    data,
+    requestId: response.headers.get("X-Request-Id") ?? requestId,
+  };
+}
+
+export async function getGachaPullOperation({
+  accessToken,
+  idempotencyKey,
+  requestId,
+}: {
+  accessToken: string;
+  idempotencyKey: string;
+  requestId: string;
+}) {
+  const response = await gatewayFetch("/api/v1/gacha/me/pulls/operation", accessToken, {
+    method: "GET",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+      "X-Request-Id": requestId,
+    },
+  });
+
+  const data = (await response.json()) as GatewayPullOperationResponse;
+  return {
+    data,
+    requestId: response.headers.get("X-Request-Id") ?? requestId,
+  };
 }
 
 export async function getGachaPity({

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
   Eye,
@@ -9,6 +8,7 @@ import {
   RefreshCcw,
   Search,
   ShieldAlert,
+  Workflow,
 } from "lucide-react";
 
 import {
@@ -18,7 +18,8 @@ import {
   type AuditLogListItem,
   type AuditLogQuery,
 } from "@/lib/gateway/audit";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedSession } from "@/lib/supabase/server";
+import { AuditLogDetailDialog } from "./AuditLogDetailDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -33,15 +34,7 @@ export default async function AuditLogsPage({ searchParams }: PageProps) {
   const query = auditLogQueryFromParams(params);
   const selectedRequestId = firstParam(params.selected_request_id);
 
-  const supabase = await createClient();
-  const [
-    {
-      data: { session },
-    },
-    {
-      data: { user },
-    },
-  ] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+  const { user, session } = await getAuthenticatedSession();
 
   if (!user || !session?.access_token) {
     redirect(`/login?next=${encodeURIComponent("/admin/gacha/audit-logs")}`);
@@ -81,7 +74,7 @@ export default async function AuditLogsPage({ searchParams }: PageProps) {
               <FileSearch className="size-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-950">接口日志</h1>
+              <h1 className="text-xl font-black tracking-tight text-slate-950">API 请求记录</h1>
               <p className="text-sm font-medium text-slate-500">
                 {listError ? "查询失败" : `${count} 条记录，当前上限 ${limit}`}
               </p>
@@ -131,127 +124,130 @@ export default async function AuditLogsPage({ searchParams }: PageProps) {
 
       {listError ? <ErrorPanel message={listError} /> : null}
 
-      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.65fr)]">
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white/90 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
-              <colgroup>
-                <col className="w-[150px]" />
-                <col className="w-[92px]" />
-                <col className="w-[88px]" />
-                <col className="w-[300px]" />
-                <col className="w-[110px]" />
-                <col className="w-[150px]" />
-                <col className="w-[120px]" />
-                <col className="w-[220px]" />
-                <col className="w-[220px]" />
-                <col className="w-[76px]" />
-              </colgroup>
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-black tracking-widest text-slate-500">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white/90 shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[150px]" />
+              <col className="w-[92px]" />
+              <col className="w-[88px]" />
+              <col className="w-[300px]" />
+              <col className="w-[110px]" />
+              <col className="w-[150px]" />
+              <col className="w-[120px]" />
+              <col className="w-[220px]" />
+              <col className="w-[220px]" />
+              <col className="w-[116px]" />
+            </colgroup>
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-black tracking-widest text-slate-500">
+              <tr>
+                <th className="px-3 py-3 text-left">时间</th>
+                <th className="px-3 py-3 text-left">状态</th>
+                <th className="px-3 py-3 text-left">方法</th>
+                <th className="px-3 py-3 text-left">路径</th>
+                <th className="px-3 py-3 text-left">路由</th>
+                <th className="px-3 py-3 text-left">用户</th>
+                <th className="px-3 py-3 text-left">鉴权</th>
+                <th className="px-3 py-3 text-left">请求体</th>
+                <th className="px-3 py-3 text-left">响应体</th>
+                <th className="px-3 py-3 text-right">详情</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {logs.length === 0 ? (
                 <tr>
-                  <th className="px-3 py-3 text-left">时间</th>
-                  <th className="px-3 py-3 text-left">状态</th>
-                  <th className="px-3 py-3 text-left">方法</th>
-                  <th className="px-3 py-3 text-left">路径</th>
-                  <th className="px-3 py-3 text-left">路由</th>
-                  <th className="px-3 py-3 text-left">用户</th>
-                  <th className="px-3 py-3 text-left">鉴权</th>
-                  <th className="px-3 py-3 text-left">请求体</th>
-                  <th className="px-3 py-3 text-left">响应体</th>
-                  <th className="px-3 py-3 text-right">详情</th>
+                  <td className="px-3 py-12 text-center text-sm font-semibold text-slate-400" colSpan={10}>
+                    没有匹配记录
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {logs.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-12 text-center text-sm font-semibold text-slate-400" colSpan={10}>
-                      没有匹配记录
+              ) : (
+                logs.map((item) => (
+                  <tr
+                    key={item.request_id}
+                    className={
+                      item.request_id === selectedRequestId
+                        ? "bg-slate-950/[0.03]"
+                        : "bg-white transition hover:bg-slate-50"
+                    }
+                  >
+                    <td className="px-3 py-3 align-top">
+                      <div className="font-semibold text-slate-800">{formatDate(item.started_at)}</div>
+                      <div className="mt-1 font-mono text-[11px] text-slate-400">{shortId(item.request_id)}</div>
                     </td>
-                  </tr>
-                ) : (
-                  logs.map((item) => (
-                    <tr
-                      key={item.request_id}
-                      className={
-                        item.request_id === selectedRequestId
-                          ? "bg-slate-950/[0.03]"
-                          : "bg-white transition hover:bg-slate-50"
-                      }
-                    >
-                      <td className="px-3 py-3 align-top">
-                        <div className="font-semibold text-slate-800">{formatDate(item.started_at)}</div>
-                        <div className="mt-1 font-mono text-[11px] text-slate-400">{shortId(item.request_id)}</div>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <StatusBadge status={item.response_status} />
-                        <div className="mt-1 text-xs font-medium text-slate-400">{formatDuration(item.duration_ms)}</div>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <span className="font-mono text-xs font-bold text-slate-700">{item.method}</span>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <div className="truncate font-semibold text-slate-800" title={fullPath(item)}>
-                          {fullPath(item)}
+                    <td className="px-3 py-3 align-top">
+                      <StatusBadge status={item.response_status} />
+                      <div className="mt-1 text-xs font-medium text-slate-400">{formatDuration(item.duration_ms)}</div>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <span className="font-mono text-xs font-bold text-slate-700">{item.method}</span>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <div className="truncate font-semibold text-slate-800" title={fullPath(item)}>
+                        {fullPath(item)}
+                      </div>
+                      {item.error_code ? (
+                        <div className="mt-1 truncate text-xs font-semibold text-rose-600" title={item.error_message ?? ""}>
+                          {item.error_code}
                         </div>
-                        {item.error_code ? (
-                          <div className="mt-1 truncate text-xs font-semibold text-rose-600" title={item.error_message ?? ""}>
-                            {item.error_code}
-                          </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3 align-top text-xs font-bold text-slate-500">{item.route ?? "-"}</td>
+                    <td className="px-3 py-3 align-top font-mono text-[11px] text-slate-500" title={item.user_id ?? ""}>
+                      {item.user_id ? shortId(item.user_id) : "-"}
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <AuthBadge value={item.auth_result} />
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <Preview value={item.request_body_preview} truncated={item.request_body_truncated} size={item.request_body_size} />
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <Preview value={item.response_body_preview} truncated={item.response_body_truncated} size={item.response_body_size} />
+                    </td>
+                    <td className="px-3 py-3 text-right align-top">
+                      <div className="flex justify-end gap-1.5">
+                        {isGachaPullPath(item.path) ? (
+                          <Link
+                            href={`/sandbox?request_id=${encodeURIComponent(item.request_id)}`}
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900"
+                            title="在 Sandbox 打开"
+                          >
+                            <Workflow className="size-4" />
+                          </Link>
                         ) : null}
-                      </td>
-                      <td className="px-3 py-3 align-top text-xs font-bold text-slate-500">{item.route ?? "-"}</td>
-                      <td className="px-3 py-3 align-top font-mono text-[11px] text-slate-500" title={item.user_id ?? ""}>
-                        {item.user_id ? shortId(item.user_id) : "-"}
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <AuthBadge value={item.auth_result} />
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <Preview value={item.request_body_preview} truncated={item.request_body_truncated} size={item.request_body_size} />
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <Preview value={item.response_body_preview} truncated={item.response_body_truncated} size={item.response_body_size} />
-                      </td>
-                      <td className="px-3 py-3 text-right align-top">
                         <Link
                           href={selectedHref(query, item.request_id)}
                           className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-slate-400 hover:text-slate-950"
+                          scroll={false}
                           title="查看详情"
                         >
                           <Eye className="size-4" />
                         </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <aside className="rounded-lg border border-slate-200 bg-white/90 shadow-sm">
-          {selectedRequestId ? (
-            detail ? (
-              <AuditDetailPanel detail={detail} query={query} />
-            ) : (
-              <div className="p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-base font-black text-slate-950">日志详情</h2>
-                  <Link href={clearSelectedHref(query)} className="text-xs font-bold text-slate-500 hover:text-slate-950">
-                    关闭
-                  </Link>
-                </div>
-                <ErrorPanel message={detailError || "日志详情不可用。"} compact />
-              </div>
-            )
+      {selectedRequestId ? (
+        <AuditLogDetailDialog
+          closeHref={clearSelectedHref(query)}
+          open
+          requestId={selectedRequestId}
+        >
+          {detail ? (
+            <AuditDetailPanel detail={detail} />
           ) : (
-            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-8 text-center text-slate-400">
-              <Activity className="size-10" />
-              <h2 className="text-base font-black text-slate-600">日志详情</h2>
+            <div className="p-5">
+              <ErrorPanel message={detailError || "日志详情不可用。"} compact />
             </div>
           )}
-        </aside>
-      </section>
+        </AuditLogDetailDialog>
+      ) : null}
     </main>
   );
 }
@@ -366,21 +362,9 @@ function Preview({ value, truncated, size }: { value: string; truncated: boolean
   );
 }
 
-function AuditDetailPanel({ detail, query }: { detail: AuditLogDetail; query: AuditLogQuery }) {
+function AuditDetailPanel({ detail }: { detail: AuditLogDetail }) {
   return (
     <div className="flex max-h-[calc(100vh-9rem)] flex-col">
-      <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
-        <div className="min-w-0">
-          <h2 className="text-base font-black text-slate-950">日志详情</h2>
-          <div className="mt-1 truncate font-mono text-xs text-slate-500" title={detail.request_id}>
-            {detail.request_id}
-          </div>
-        </div>
-        <Link href={clearSelectedHref(query)} className="shrink-0 text-xs font-bold text-slate-500 hover:text-slate-950">
-          关闭
-        </Link>
-      </div>
-
       <div className="space-y-4 overflow-y-auto p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <DetailItem label="时间" value={formatDate(detail.started_at)} />
@@ -462,7 +446,7 @@ function CodeBlock({ title, value, meta }: { title: string; value: string; meta?
         <h3 className="text-xs font-black tracking-widest text-slate-500">{title}</h3>
         {meta ? <span className="text-[11px] font-bold text-slate-400">{meta}</span> : null}
       </div>
-      <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-100">
+      <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all bg-cyan-50/70 p-3 font-mono text-xs leading-5 text-slate-800 ring-1 ring-inset ring-cyan-100/80 selection:bg-cyan-200">
         {value || "-"}
       </pre>
     </section>
@@ -537,6 +521,10 @@ function setParam(params: URLSearchParams, key: string, value?: string) {
 
 function fullPath(item: { path: string; raw_query?: string | null }) {
   return item.raw_query ? `${item.path}?${item.raw_query}` : item.path;
+}
+
+function isGachaPullPath(path: string) {
+  return path === "/api/v1/gacha/me/pulls" || path.endsWith("/api/v1/gacha/me/pulls");
 }
 
 function successStatus(status: number | null) {

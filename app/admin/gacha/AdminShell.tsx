@@ -1,126 +1,235 @@
 "use client";
 
-import { ReactNode, useRef } from "react";
-import Link from "next/link";
+import type { ReactNode } from "react";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, Swords, Gift, Settings2, Target, LogOut, Sparkles, Home, FileSearch } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
+import {
+  CalendarRange,
+  Dices,
+  FileSearch,
+  FolderKanban,
+  History,
+  LoaderCircle,
+  LogOut,
+  PackageSearch,
+  PanelLeft,
+  ScrollText,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  controlRoleLabels,
+  hasControlCapability,
+  type ControlCapability,
+  type ControlRole,
+} from "@/lib/control-plane/roles";
+import type { ControlPlaneWorkspaceOption } from "@/lib/control-plane/access";
+import { WorkspaceSwitcher } from "@/components/console/WorkspaceSwitcher";
 
-gsap.registerPlugin(useGSAP);
+type NavigationItem = {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  capability?: ControlCapability;
+};
 
-const sidebarLinks = [
-  { href: "/admin/gacha/items", label: "物品图鉴", icon: Swords, color: "text-rose-500" },
-  { href: "/admin/gacha/banners", label: "卡池类别", icon: Gift, color: "text-amber-500" },
-  { href: "/admin/gacha/banner-versions", label: "卡池档期", icon: Database, color: "text-blue-500" },
-  { href: "/admin/gacha/banner-items", label: "卡池内容", icon: Target, color: "text-emerald-500" },
-  { href: "/admin/gacha/rule-sets", label: "规则模板", icon: Settings2, color: "text-purple-500" },
-  { href: "/admin/gacha/audit-logs", label: "接口日志", icon: FileSearch, color: "text-slate-700" },
+const navigationGroups: { label: string; items: NavigationItem[] }[] = [
+  {
+    label: "日常操作",
+    items: [
+      { href: "/console/pools", label: "卡池管理", icon: CalendarRange },
+      {
+        href: "/admin/gacha/items",
+        label: "内容库",
+        icon: PackageSearch,
+        capability: "configuration:read",
+      },
+      {
+        href: "/sandbox",
+        label: "抽取预览",
+        icon: Dices,
+        capability: "configuration:read",
+      },
+      {
+        href: "/console/releases",
+        label: "发布记录",
+        icon: History,
+        capability: "configuration:read",
+      },
+    ],
+  },
+  {
+    label: "管理",
+    items: [
+      {
+        href: "/console/team",
+        label: "团队成员",
+        icon: Users,
+        capability: "organization:manage",
+      },
+      {
+        href: "/console/workspaces",
+        label: "项目环境",
+        icon: FolderKanban,
+        capability: "organization:manage",
+      },
+      {
+        href: "/admin/gacha/audit-logs",
+        label: "API 请求记录",
+        icon: FileSearch,
+        capability: "audit:view",
+      },
+      {
+        href: "/console/activity",
+        label: "操作记录",
+        icon: ScrollText,
+        capability: "audit:view",
+      },
+    ],
+  },
 ];
 
-export default function AdminShell({ children, userEmail }: { children: ReactNode, userEmail: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function AdminShell({
+  activeEnvironmentId,
+  children,
+  contextPinned,
+  environmentName,
+  organizationName,
+  projectName,
+  role,
+  userEmail,
+  workspaceOptions,
+}: {
+  activeEnvironmentId: string;
+  children: ReactNode;
+  contextPinned: boolean;
+  environmentName: string;
+  organizationName: string;
+  projectName: string;
+  role: ControlRole;
+  userEmail: string;
+  workspaceOptions: ControlPlaneWorkspaceOption[];
+}) {
   const pathname = usePathname();
 
-  useGSAP(() => {
-    // Sidebar entrance
-    gsap.fromTo(".sidebar",
-      { x: -50, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.8, ease: "power3.out" }
-    );
-
-    // Page content entrance
-    gsap.fromTo(".main-content",
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", delay: 0.2 }
-    );
-  }, { scope: containerRef });
-
   return (
-    <div ref={containerRef} className="flex min-h-screen relative overflow-hidden bg-[#fafafa]">
-      {/* Dreamy Background Layer - Optimized */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-[#fafafa]">
-        {/* Static CSS Gradient Background instead of animating blobs */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,var(--tw-gradient-stops))] from-pink-100/60 via-white to-blue-50/60" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,var(--tw-gradient-stops))] from-amber-50/60 via-transparent to-transparent" />
-
-        {/* Noise overlay without mix-blend-mode (using simple opacity over solid color) */}
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
-      </div>
-
-      {/* Floating Sidebar (Reduced Blur for Performance) */}
-      <aside className="sidebar relative z-20 w-64 m-4 mr-0 rounded-3xl border border-white/60 bg-white/70 backdrop-blur-md shadow-xl shadow-pink-100/30 flex-col flex shrink-0 overflow-hidden">
-        <div className="h-20 flex items-center px-6 border-b border-white/50 relative">
-          <div className="absolute top-0 left-0 w-full h-full bg-linear-to-r from-pink-400/10 to-transparent" />
-          <Link href="/admin/gacha" className="flex items-center gap-2 font-black text-xl text-slate-800 tracking-tight relative z-10 group">
-            <div className="p-2 bg-linear-to-br from-pink-400 to-orange-400 rounded-xl text-white shadow-md group-hover:scale-110 transition-transform">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-linear-to-r from-pink-500 to-orange-500">
-              祈愿配置
+    <div className="flex min-h-screen flex-col bg-[#f4f6f5] text-slate-950 lg:flex-row">
+      <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-60 lg:border-b-0 lg:border-r">
+        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+          <Link className="flex min-w-0 items-center gap-3" href="/console/pools">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#143f3b] text-white">
+              <PanelLeft className="size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-base font-semibold">GachaOps</span>
+              <span className="block truncate text-[11px] font-medium text-slate-400">LiveOps Console</span>
             </span>
           </Link>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 lg:hidden">
+            {controlRoleLabels[role]}
+          </span>
         </div>
 
-        <ScrollArea className="flex-1 w-full py-6">
-          <div className="px-4 space-y-2">
-            {sidebarLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`relative flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-2xl transition-all duration-300 overflow-hidden group ${
-                    isActive
-                      ? "text-slate-800 shadow-sm shadow-pink-100 bg-white/80"
-                      : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
-                  }`}
-                >
-                  {/* Active Indicator Line */}
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-linear-to-b from-pink-400 to-orange-400 rounded-r-full" />
-                  )}
-
-                  {/* Hover gradient background */}
-                  <div className="absolute inset-0 bg-linear-to-r from-pink-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                  <Icon className={`w-5 h-5 relative z-10 transition-transform group-hover:scale-110 ${isActive ? link.color : ""}`} />
-                  <span className="relative z-10">{link.label}</span>
-                </Link>
-              );
-            })}
+        <div className="border-b border-slate-200 px-4 py-3">
+          <WorkspaceSwitcher
+            activeEnvironmentId={activeEnvironmentId}
+            disabled={contextPinned}
+            options={workspaceOptions}
+          />
+          <div className="mt-2 flex min-w-0 items-center justify-between gap-2 px-0.5">
+            <span className="truncate text-[11px] text-slate-400">{organizationName} / {projectName}</span>
+            <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200">
+              {environmentName}
+            </span>
           </div>
-        </ScrollArea>
+        </div>
 
-        <div className="p-5 border-t border-white/50 bg-white/20">
-          <Link
-            href="/"
-            className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-white/70 bg-white/60 px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-pink-500"
-          >
-            <Home className="h-4 w-4" />
-            返回抽卡首页
-          </Link>
-          <div className="flex flex-col gap-1 mb-4 px-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">管理者</span>
-            <span className="text-sm font-medium text-slate-700 truncate">{userEmail}</span>
+        <nav className="flex gap-2 overflow-x-auto px-2 py-3 lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-y-auto lg:px-3 lg:py-4">
+          {navigationGroups.map((group) => {
+            const visibleItems = group.items.filter(
+              (item) => !item.capability || hasControlCapability(role, item.capability),
+            );
+
+            if (visibleItems.length === 0) {
+              return null;
+            }
+
+            return (
+              <div className="flex shrink-0 gap-1 lg:block" key={group.label}>
+                <div className="mb-2 hidden px-2 text-[10px] font-bold uppercase text-slate-400 lg:block">
+                  {group.label}
+                </div>
+                <div className="flex gap-1 lg:flex-col">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== "/console" && pathname.startsWith(`${item.href}/`));
+
+                    return (
+                      <Link
+                        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition lg:w-full lg:gap-2 lg:px-3 lg:text-sm ${
+                          isActive
+                            ? "bg-[#e7f1ef] text-[#143f3b] ring-1 ring-inset ring-[#c9dfda]"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                        }`}
+                        href={item.href}
+                        key={item.href}
+                      >
+                        <Icon className="size-4 shrink-0" />
+                        <span className="whitespace-nowrap">{item.label}</span>
+                        <NavigationPendingIndicator />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="hidden border-t border-slate-200 p-3 lg:block">
+          <div className="mb-3 flex items-center justify-between gap-2 px-2">
+            <div className="min-w-0">
+              <div className="truncate text-xs font-medium text-slate-700">{userEmail}</div>
+              <div className="mt-0.5 text-[11px] text-slate-400">{controlRoleLabels[role]}</div>
+            </div>
           </div>
-          <form suppressHydrationWarning action="/auth/signout" method="post">
-            <button className="flex items-center justify-center gap-2 text-rose-500 hover:text-white hover:bg-rose-400 font-bold w-full px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-rose-200">
-              <LogOut className="w-4 h-4" />
-              退出系统
+          <form action="/auth/signout" method="post" suppressHydrationWarning>
+            <button
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+              type="submit"
+            >
+              <LogOut className="size-4" />
+              退出登录
             </button>
           </form>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <ScrollArea className="main-content relative z-10 flex-1">
-        <div className="p-4">
-          {children}
-        </div>
-      </ScrollArea>
+      <main className="min-w-0 flex-1 overflow-y-auto lg:h-screen">
+        <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-5 lg:p-6">{children}</div>
+      </main>
     </div>
+  );
+}
+
+function NavigationPendingIndicator() {
+  const { pending } = useLinkStatus();
+
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={`ml-auto flex size-4 shrink-0 items-center justify-center transition-opacity duration-150 ${
+          pending ? "opacity-100 delay-100" : "opacity-0 delay-0"
+        }`}
+      >
+        <LoaderCircle className={`size-3.5 ${pending ? "animate-spin" : ""}`} />
+      </span>
+      <span aria-live="polite" className="sr-only">
+        {pending ? "正在打开页面" : ""}
+      </span>
+    </>
   );
 }

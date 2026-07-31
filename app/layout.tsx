@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@xyflow/react/dist/style.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
@@ -21,12 +22,12 @@ const bannerTitleFont = Ma_Shan_Zheng({
 const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  applicationName: "Resonance Convene",
+  applicationName: "GachaOps",
   title: {
-    default: "抽卡模拟器",
-    template: "%s · 抽卡模拟器",
+    default: "GachaOps Console",
+    template: "%s | GachaOps",
   },
-  description: "静态数据驱动的二次元抽卡模拟器。",
+  description: "面向抽取机制与游戏经济团队的 LiveOps 控制台。",
   icons: {
     icon: [{ url: "/favicon.ico", sizes: "any" }],
   },

@@ -18,6 +18,17 @@ type GachaAuditDetailLike = {
 export function toGachaTraceAuditSnapshot(
   detail: GachaAuditDetailLike,
 ): GachaTraceAuditSnapshot {
+  const response = asRecord(detail.response_body_json);
+  const responseError = asRecord(response?.error);
+  const errorCode =
+    optionalString(detail.error_code) ??
+    optionalString(responseError?.code) ??
+    optionalString(response?.code);
+  const errorMessage =
+    optionalString(detail.error_message) ??
+    optionalString(responseError?.message) ??
+    optionalString(response?.message);
+
   return {
     requestId: detail.request_id,
     startedAt: detail.started_at,
@@ -25,9 +36,19 @@ export function toGachaTraceAuditSnapshot(
     durationMs: detail.duration_ms,
     upstreamUrl: detail.upstream_url,
     responseStatus: detail.response_status,
-    errorCode: detail.error_code,
-    errorMessage: detail.error_message,
+    errorCode,
+    errorMessage,
     requestBody: detail.request_body_json,
     responseBody: detail.response_body_json,
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

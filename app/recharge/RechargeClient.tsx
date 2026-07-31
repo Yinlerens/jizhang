@@ -6,15 +6,19 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronDown,
+  FlaskConical,
   Gem,
   Loader2,
   ReceiptText,
   RefreshCw,
-  WalletCards,
 } from "lucide-react";
 import type { AssetAccount, LedgerEntry } from "@/lib/gateway/assets";
-import { formatAssetAmount, type RechargeTier } from "@/lib/recharge/tiers";
-import { loadAssetLedgerPage, rechargeTier, type RechargeActionResult } from "./actions";
+import { formatAssetAmount, type ResourceGrantPreset } from "@/lib/sandbox/resource-grants";
+import {
+  grantSandboxResources,
+  loadAssetLedgerPage,
+  type ResourceGrantActionResult,
+} from "./actions";
 import { GACHA_STORAGE_KEY } from "@/lib/gacha/simulator";
 
 export default function RechargeClient({
@@ -22,21 +26,21 @@ export default function RechargeClient({
   initialLedgerNextCursor,
   initialAccount,
   ledgerLoadError,
-  tiers,
+  grants,
   loadError,
 }: {
   initialAccount: AssetAccount | null;
   initialLedgerItems: LedgerEntry[];
   initialLedgerNextCursor?: string;
   ledgerLoadError?: string;
-  tiers: RechargeTier[];
+  grants: ResourceGrantPreset[];
   loadError?: string;
 }) {
   const [balanceMinor, setBalanceMinor] = useState(initialAccount?.balance_minor ?? 0);
   const [ledgerItems, setLedgerItems] = useState(initialLedgerItems);
   const [ledgerNextCursor, setLedgerNextCursor] = useState(initialLedgerNextCursor);
   const [ledgerError, setLedgerError] = useState(ledgerLoadError ?? "");
-  const [result, setResult] = useState<RechargeActionResult | null>(
+  const [result, setResult] = useState<ResourceGrantActionResult | null>(
     loadError
       ? {
           ok: false,
@@ -44,17 +48,17 @@ export default function RechargeClient({
         }
       : null,
   );
-  const [pendingTierId, setPendingTierId] = useState<string | null>(null);
+  const [pendingGrantId, setPendingGrantId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isLedgerPending, startLedgerTransition] = useTransition();
 
-  const submitTier = (tier: RechargeTier) => {
-    setPendingTierId(tier.id);
+  const submitGrant = (grant: ResourceGrantPreset) => {
+    setPendingGrantId(grant.id);
     setResult(null);
     startTransition(async () => {
-      const nextResult = await rechargeTier(tier.id);
+      const nextResult = await grantSandboxResources(grant.id);
       setResult(nextResult);
-      setPendingTierId(null);
+      setPendingGrantId(null);
       if (nextResult.ok) {
         setBalanceMinor(nextResult.balanceMinor);
         setLedgerItems((items) => mergeLedgerEntries([nextResult.entry, ...items]));
@@ -101,8 +105,8 @@ export default function RechargeClient({
         <header className="flex items-center justify-between">
           <Link
             className="inline-flex h-11 w-11 items-center justify-center border border-white/12 bg-white/8 text-white/82 transition hover:border-white/30 hover:bg-white/12"
-            href="/"
-            aria-label="返回首页"
+            href="/sandbox"
+            aria-label="返回 Sandbox"
           >
             <ArrowLeft size={20} />
           </Link>
@@ -118,14 +122,14 @@ export default function RechargeClient({
         <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
             <div className="inline-flex items-center gap-2 border border-[#d8bd7b]/35 bg-[#d8bd7b]/10 px-3 py-1 text-sm font-bold text-[#f3d36f]">
-              <WalletCards size={16} />
-              星声补给
+              <FlaskConical size={16} />
+              Sandbox 资源
             </div>
-            <h1 className="mt-5 text-[clamp(3rem,8vw,6.5rem)] font-black leading-none tracking-normal">
-              充值
+            <h1 className="mt-5 text-4xl font-black leading-none tracking-normal sm:text-5xl">
+              演示资源
             </h1>
             <p className="mt-5 max-w-md text-base leading-7 text-white/62">
-              选择常用档位后会调用网关资产接口，为当前登录账号新增资源。充值成功后首页资源显示会同步为最新余额。
+              为当前 Sandbox 账号发放仅用于机制验证的虚拟资源。此操作不代表支付、订单或真实货币交易。
             </p>
             {result && (
               <div
@@ -144,30 +148,30 @@ export default function RechargeClient({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {tiers.map((tier) => {
-              const loading = isPending && pendingTierId === tier.id;
+            {grants.map((grant) => {
+              const loading = isPending && pendingGrantId === grant.id;
               return (
                 <button
                   className="group relative min-h-44 border border-white/14 bg-white/[0.07] p-5 text-left shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition hover:-translate-y-1 hover:border-[#f3d36f]/55 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={isPending}
-                  key={tier.id}
-                  onClick={() => submitTier(tier)}
+                  key={grant.id}
+                  onClick={() => submitGrant(grant)}
                   type="button"
                 >
-                  {tier.badge && (
+                  {grant.badge && (
                     <span className="absolute right-4 top-4 bg-[#d6a84f] px-2 py-0.5 text-xs font-black text-[#19150e]">
-                      {tier.badge}
+                      {grant.badge}
                     </span>
                   )}
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3d36f]/16 text-[#f3d36f]">
                     {loading ? <Loader2 size={21} className="animate-spin" /> : <Gem size={21} />}
                   </div>
                   <div className="mt-5 text-4xl font-black">
-                    {formatAssetAmount(tier.amountMinor)}
+                    {formatAssetAmount(grant.amountMinor)}
                   </div>
-                  <div className="mt-1 text-sm font-medium text-white/50">{tier.title}</div>
+                  <div className="mt-1 text-sm font-medium text-white/50">{grant.title}</div>
                   <div className="mt-5 inline-flex border border-white/15 bg-black/24 px-3 py-1 text-lg font-black text-[#f3d36f]">
-                    {tier.priceLabel}
+                    添加资源
                   </div>
                 </button>
               );
@@ -183,8 +187,8 @@ export default function RechargeClient({
                   <ReceiptText size={20} />
                 </div>
                 <div>
-                  <div className="text-xl font-black">资产流水</div>
-                  <div className="text-xs text-white/45">最近资产变动</div>
+                  <div className="text-xl font-black">资源流水</div>
+                  <div className="text-xs text-white/45">Sandbox 最近资源变动</div>
                 </div>
               </div>
               <button
@@ -289,8 +293,12 @@ function LedgerMetric({
 }
 
 function formatReason(reason: string) {
+  if (reason === "sandbox_grant") {
+    return "Sandbox 资源发放";
+  }
+
   if (reason === "topup") {
-    return "充值";
+    return "历史演示入账";
   }
 
   if (reason === "manual_credit") {

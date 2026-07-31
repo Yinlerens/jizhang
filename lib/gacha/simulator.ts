@@ -11,7 +11,8 @@ import type {
   StoredGachaState,
 } from "./types";
 
-export const GACHA_STORAGE_KEY = "wuwa-static-gacha-v1";
+export const GACHA_STORAGE_KEY = "gachaops:sandbox:state:v1";
+export const LEGACY_GACHA_STORAGE_KEY = "wuwa-static-gacha-v1";
 export const ASTRITE_PER_PULL = 160;
 
 export function createInitialPity(): PityState {

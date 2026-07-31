@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   GACHA_TRACE_EDGES,
+  GACHA_TRACE_NODE_DEFINITIONS,
   GACHA_TRACE_NODE_ORDER,
   createGachaTraceRun,
   locateGachaFailure,
@@ -211,7 +212,9 @@ test("attributes dependency errors to the node where the request stopped", () =>
   assert.equal(locateGachaFailure("gacha_config_unavailable").nodeId, "config");
   assert.equal(locateGachaFailure("insufficient_balance").nodeId, "asset");
   assert.equal(locateGachaFailure("redis_unavailable").nodeId, "redis");
+  assert.equal(locateGachaFailure("state_store_unavailable").nodeId, "redis");
   assert.equal(locateGachaFailure("kafka_unavailable").nodeId, "kafka");
+  assert.equal(GACHA_TRACE_NODE_DEFINITIONS.redis.label, "Gacha State DB");
 });
 
 test("marks the failed node and skips work that cannot run afterward", () => {
@@ -273,6 +276,53 @@ test("converts gateway audit details without exposing authentication headers", (
   });
   assert.equal("requestHeaders" in snapshot, false);
   assert.equal("responseHeaders" in snapshot, false);
+});
+
+test("reattributes a nested audited dependency error to Redis", () => {
+  const startedAt = 5_000;
+  const initial = createGachaTraceRun({
+    runId: "run-audit-redis",
+    bannerId: "limited-character-1",
+    count: 1,
+    startedAt,
+  });
+  const running = reduceGachaTrace(initial, {
+    type: "request_started",
+    at: startedAt,
+    requestId: "request-audit-redis",
+  });
+  const initiallyUnknown = reduceGachaTrace(running, {
+    type: "pull_failed",
+    at: 5_120,
+    requestId: "request-audit-redis",
+    message: "gateway request failed",
+  });
+  const audit = toGachaTraceAuditSnapshot({
+    request_id: "request-audit-redis",
+    started_at: "2026-07-27T08:00:00.000Z",
+    finished_at: "2026-07-27T08:00:00.120Z",
+    duration_ms: 120,
+    upstream_url: "http://gacha-engine-service/v1/me/pulls",
+    response_status: 503,
+    error_code: null,
+    error_message: null,
+    request_body_json: { banner_id: "limited-character-1", count: 1 },
+    response_body_json: {
+      error: {
+        code: "redis_unavailable",
+        message: "pull idempotency is unavailable",
+      },
+    },
+  });
+  const attributed = reduceGachaTrace(initiallyUnknown, { type: "audit_loaded", audit });
+
+  assert.equal(audit.errorCode, "redis_unavailable");
+  assert.equal(audit.errorMessage, "pull idempotency is unavailable");
+  assert.equal(attributed.failedNodeId, "redis");
+  assert.equal(attributed.nodes.gacha.status, "success");
+  assert.equal(attributed.nodes.redis.status, "error");
+  assert.equal(attributed.nodes.redis.errorCode, "redis_unavailable");
+  assert.equal(attributed.nodes.asset.status, "skipped");
 });
 
 test("replaces the old Sandbox experience with an interactive trace lab", () => {
@@ -356,6 +406,16 @@ test("provides replay controls and projects replay state onto the graph", () => 
   assert.match(controls, /播放速度/);
   assert.match(canvas, /replayEdgeId/);
   assert.match(canvas, /replayNodeId/);
+});
+
+test("releases the pull control before asynchronous Backpack projection completes", () => {
+  const lab = read("../app/SandboxTraceLab.tsx");
+
+  assert.match(lab, /void checkBackpack\(runId, result\.eventId\)/);
+  assert.doesNotMatch(lab, /await checkBackpack\(runId, result\.eventId\)/);
+  assert.match(lab, /backpackChecksRef/);
+  assert.match(lab, /activeRunIdRef\.current === runId/);
+  assert.doesNotMatch(lab, /const canPull =[\s\S]{0,180}!isCheckingBackpack/);
 });
 
 function read(path: string) {

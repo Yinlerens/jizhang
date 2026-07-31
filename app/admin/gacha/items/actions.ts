@@ -8,22 +8,32 @@ const itemTypes = new Set(["character", "weapon"]);
 const rarities = new Set([3, 4, 5]);
 
 export async function deleteItem(id: string) {
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("items").delete().eq("id", id);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("items")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/items");
 }
 
 export async function deleteItems(ids: string[]) {
   const itemIds = normalizeBulkTextValues(ids, "物品");
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("items").delete().in("id", itemIds);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("items")
+    .delete()
+    .eq("project_id", context.project.id)
+    .in("id", itemIds);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/items");
 }
 
 export async function upsertItem(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
 
   const metadataStr = getString(formData, "metadata", 4000);
   let metadata = {};
@@ -56,6 +66,7 @@ export async function upsertItem(formData: FormData) {
   }
 
   const payload = {
+    project_id: context.project.id,
     id,
     name,
     subtitle: getString(formData, "subtitle", 160),

@@ -1,8 +1,6 @@
 import { createGachaAdminPageClient } from "../actionAuth";
-import {
-  GachaAdminError,
-  ItemsAdminPanel,
-} from "../GachaAdminPanels";
+import { ItemsAdminPanel } from "../panels/items";
+import { GachaAdminError } from "../panels/shared";
 import type { GachaItemRow } from "@/lib/supabase/database.gacha.types";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +11,12 @@ export default async function ItemsPage() {
     return <GachaAdminError description={adminClient.message} />;
   }
 
-  const supabase = adminClient.supabase;
+  const { context, supabase } = adminClient;
   const { data: items, error } = await supabase
     .schema("gacha")
     .from("items")
     .select("*")
+    .eq("project_id", context.project.id)
     .order("created_at", { ascending: false });
 
   if (error) {

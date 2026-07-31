@@ -218,8 +218,8 @@ export const GACHA_TRACE_NODE_DEFINITIONS: Record<
   },
   redis: {
     id: "redis",
-    label: "Redis",
-    role: "幂等与保底状态",
+    label: "Gacha State DB",
+    role: "持久化幂等、保底与 Outbox",
     traffic: "east-west",
     kind: "database",
   },
@@ -286,7 +286,7 @@ export const GACHA_TRACE_EDGES: GachaTraceEdge[] = [
     id: "gacha-redis",
     source: "gacha",
     target: "redis",
-    label: "pity + idempotency",
+    label: "state transaction",
     traffic: "east-west",
   },
   {
@@ -413,12 +413,14 @@ export function locateGachaFailure(code?: string): {
   }
 
   if (
+    normalized.includes("state_store") ||
+    normalized.includes("postgres") ||
     normalized.includes("redis") ||
     normalized.includes("pity") ||
     normalized.includes("idempotency") ||
     normalized === "pull_in_progress"
   ) {
-    return { nodeId: "redis", summary: "幂等或保底状态处理失败" };
+    return { nodeId: "redis", summary: "持久化幂等或保底状态处理失败" };
   }
 
   if (normalized.includes("kafka") || normalized.includes("event_publish")) {
@@ -625,21 +627,33 @@ function auditLoaded(
 ): GachaTraceRun {
   const startedAt = Date.parse(audit.startedAt);
   const finishedAt = audit.finishedAt ? Date.parse(audit.finishedAt) : Number.NaN;
-  const hasError = typeof audit.responseStatus === "number" && audit.responseStatus >= 500;
-  const gatewayIsFailurePoint = run.failedNodeId === "gateway";
-  let nodes = updateNode(run.nodes, "gateway", {
+  const hasError = typeof audit.responseStatus === "number" && audit.responseStatus >= 400;
+  const attributedRun =
+    hasError && audit.errorCode
+      ? pullFailed(run, {
+          type: "pull_failed",
+          at: Number.isFinite(finishedAt) ? finishedAt : run.finishedAt ?? run.startedAt,
+          requestId: audit.requestId,
+          code: audit.errorCode,
+          message: audit.errorMessage ?? "上游调用返回错误",
+        })
+      : run;
+  const gatewayIsFailurePoint = attributedRun.failedNodeId === "gateway";
+  let nodes = updateNode(attributedRun.nodes, "gateway", {
     evidence: "observed",
-    status: hasError && gatewayIsFailurePoint ? "error" : run.nodes.gateway.status,
+    status: hasError && gatewayIsFailurePoint ? "error" : attributedRun.nodes.gateway.status,
     summary:
       hasError && gatewayIsFailurePoint
         ? audit.errorMessage ?? "网关返回服务错误"
-        : run.nodes.gateway.summary,
-    startedAt: Number.isFinite(startedAt) ? startedAt : run.nodes.gateway.startedAt,
-    finishedAt: Number.isFinite(finishedAt) ? finishedAt : run.nodes.gateway.finishedAt,
+        : attributedRun.nodes.gateway.summary,
+    startedAt: Number.isFinite(startedAt) ? startedAt : attributedRun.nodes.gateway.startedAt,
+    finishedAt: Number.isFinite(finishedAt)
+      ? finishedAt
+      : attributedRun.nodes.gateway.finishedAt,
     durationMs: audit.durationMs,
     httpStatus: audit.responseStatus,
-    errorCode: audit.errorCode,
-    errorMessage: audit.errorMessage,
+    errorCode: gatewayIsFailurePoint ? audit.errorCode : null,
+    errorMessage: gatewayIsFailurePoint ? audit.errorMessage : null,
     request: tracePacket("observed", "request", "HTTPS", "Gateway 审计日志记录的真实请求体，认证头已移除", {
       method: "POST",
       path: "/api/v1/gacha/me/pulls",
@@ -656,6 +670,8 @@ function auditLoaded(
 
   if (audit.upstreamUrl) {
     nodes = updateNode(nodes, "gacha", {
+      evidence: "observed",
+      httpStatus: audit.responseStatus,
       request: tracePacket("observed", "request", "HTTP", "Gateway 审计日志确认的真实上游地址与请求体", {
         upstream_url: audit.upstreamUrl,
         request_id: audit.requestId,
@@ -670,8 +686,8 @@ function auditLoaded(
   }
 
   return {
-    ...run,
-    requestId: audit.requestId || run.requestId,
+    ...attributedRun,
+    requestId: audit.requestId || attributedRun.requestId,
     nodes,
   };
 }
@@ -872,8 +888,8 @@ function seedDownstreamPackets(
       pull_count: run.count,
       request_id: context.requestId,
     }),
-    redis: tracePacket("derived", "request", "Redis", "根据 Gacha Engine 事务路径判定的幂等与保底更新", {
-      operations: ["idempotency", "pity_state"],
+    redis: tracePacket("derived", "request", "Postgres transaction", "根据 Gacha Engine 事务路径判定的持久化状态提交", {
+      operations: ["idempotency", "pity_state", "event_outbox"],
       banner_id: run.bannerId,
       idempotency_key: context.idempotencyKey,
     }),
@@ -928,8 +944,8 @@ function successfulResponsePacket(
         pull_count: resultPayload.count,
       });
     case "redis":
-      return tracePacket("derived", "response", "Redis", "抽卡结果携带新状态版本，据此判定状态更新已完成", {
-        status: "updated",
+      return tracePacket("derived", "response", "Postgres transaction", "抽卡结果携带新状态版本，据此判定状态事务已经提交", {
+        status: "committed",
         state_version: result?.stateVersion ?? null,
         next_pity: result?.nextPity ?? null,
       });
@@ -982,7 +998,7 @@ function nodeProtocol(id: GachaTraceNodeId) {
     gacha: "HTTP proxy",
     config: "database read",
     asset: "service call",
-    redis: "Redis",
+    redis: "Postgres transaction",
     kafka: "Kafka",
     backpack: "HTTPS",
     "backpack-db": "database transaction",
@@ -1033,7 +1049,7 @@ function successSummary(id: GachaTraceNodeId) {
     gacha: "抽卡事务执行成功",
     config: "生效配置可用",
     asset: "资源扣减成功",
-    redis: "幂等与保底状态已更新",
+    redis: "幂等、保底与待发送事件已持久化",
     kafka: "抽卡事件已发布",
     backpack: "Kafka 事件已消费",
     "backpack-db": "背包事务已提交",

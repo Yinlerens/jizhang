@@ -11,9 +11,11 @@ type FeaturedRuleKey = {
 };
 
 export async function deleteFeaturedRule(banner_version_id: string, rarity: number, featured_group: string) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("featured_rules")
     .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
     .eq("banner_version_id", banner_version_id)
     .eq("rarity", rarity)
     .eq("featured_group", featured_group);
@@ -30,17 +32,25 @@ export async function deleteFeaturedRules(keys: FeaturedRuleKey[]) {
     ]),
     "UP 保底规则",
   );
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("featured_rules").delete().or(filter);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("featured_rules")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
+    .or(filter);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/featured-rules");
 }
 
 export async function upsertFeaturedRule(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   
   const guarantee_state_key = formData.get("guarantee_state_key") as string;
   const payload = {
+    project_id: context.project.id,
+    environment_id: context.environment.id,
     banner_version_id: formData.get("banner_version_id") as string,
     rarity: parseInt(formData.get("rarity") as string),
     featured_group: formData.get("featured_group") as string,

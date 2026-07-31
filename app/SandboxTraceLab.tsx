@@ -2,12 +2,14 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CirclePlay,
   FileClock,
+  History,
   LoaderCircle,
+  MousePointerClick,
   Network,
   RadioTower,
   RefreshCw,
@@ -19,15 +21,34 @@ import { toast } from "sonner";
 import {
   drawGachaPull,
   loadGachaTraceAudit,
+  loadSandboxInitialState,
+  loadHistoricalGachaTrace,
+  recoverGachaPull,
   syncGachaBackpackAfterPull,
   type BackpackSyncActionResult,
 } from "./gacha/actions";
+import KafkaTopicMonitor from "@/components/trace/KafkaTopicMonitor";
 import TraceNodeInspector from "@/components/trace/TraceNodeInspector";
 import TraceReplayControls from "@/components/trace/TraceReplayControls";
 import TraceWaterfall from "@/components/trace/TraceWaterfall";
 import { ASTRITE_PER_PULL } from "@/lib/gacha/simulator";
-import type { Banner, GachaItem, PityState, PullRecord } from "@/lib/gacha/types";
+import type { Banner } from "@/lib/gacha/types";
 import type { GatewayPullRecord } from "@/lib/gateway/gacha";
+import type {
+  GachaHistoricalTrace,
+  GachaTraceComparison,
+} from "@/lib/trace/gacha-history";
+import type {
+  GachaConcurrencyBatch,
+  GachaConcurrencyTrace,
+} from "@/lib/trace/gacha-concurrency";
+import {
+  KAFKA_MONITOR_CONSUMER_GROUP,
+  KAFKA_MONITOR_TOPIC,
+  mergeKafkaMonitorSignals,
+  type KafkaMonitorMessage,
+  type KafkaMonitorSignal,
+} from "@/lib/trace/kafka-monitor";
 import {
   createGachaTraceRun,
   reduceGachaTrace,
@@ -44,15 +65,15 @@ const GachaTraceCanvas = dynamic(() => import("@/components/trace/GachaTraceCanv
     </div>
   ),
 });
+const TraceHistoryDialog = dynamic(() => import("@/components/trace/TraceHistoryDialog"));
+const TraceConcurrencyDialog = dynamic(() => import("@/components/trace/TraceConcurrencyDialog"));
+const TraceComparisonDialog = dynamic(
+  () => import("@/components/trace/TraceComparisonDialog"),
+);
 
 type SandboxTraceLabProps = {
   banners: Banner[];
-  items: GachaItem[];
-  dataSource: "supabase";
-  initialBalanceMinor?: number;
-  initialHistory?: PullRecord[];
-  initialInventory?: Record<string, number>;
-  initialPityByBannerId?: Record<string, PityState>;
+  initialRequestId?: string;
 };
 
 type DisplayPullResult = {
@@ -71,22 +92,28 @@ type PendingOperation = {
 
 const PENDING_OPERATION_KEY = "gachaops:trace-lab:pending-pull:v1";
 
-export default function SandboxTraceLab({
-  banners,
-  initialBalanceMinor,
-  initialHistory,
-}: SandboxTraceLabProps) {
+export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTraceLabProps) {
   const [activeBannerId, setActiveBannerId] = useState(banners[0]?.id ?? "");
   const [pullCount, setPullCount] = useState<1 | 10>(10);
   const [isPulling, setIsPulling] = useState(false);
-  const [isCheckingBackpack, setIsCheckingBackpack] = useState(false);
-  const [balanceMinor, setBalanceMinor] = useState(initialBalanceMinor);
+  const [checkingBackpackRunIds, setCheckingBackpackRunIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [balanceMinor, setBalanceMinor] = useState<number>();
   const [pendingOperation, setPendingOperation] = useState<PendingOperation | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<GachaTraceNodeId>("gateway");
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
-  const [results, setResults] = useState<DisplayPullResult[]>(() =>
-    (initialHistory ?? []).slice(0, 10).map(mapHistoryRecord),
-  );
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isConcurrencyOpen, setIsConcurrencyOpen] = useState(false);
+  const [hasOpenedConcurrency, setHasOpenedConcurrency] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [isLoadingInitialTrace, setIsLoadingInitialTrace] = useState(Boolean(initialRequestId));
+  const [comparison, setComparison] = useState<GachaTraceComparison | null>(null);
+  const [traceSource, setTraceSource] = useState<"live" | "history" | "concurrency">("live");
+  const [results, setResults] = useState<DisplayPullResult[]>([]);
+  const [kafkaMessages, setKafkaMessages] = useState<KafkaMonitorMessage[]>([]);
+  const hasStartedPullRef = useRef(false);
+  const initialRequestLoadedRef = useRef(false);
   const [run, setRun] = useState<GachaTraceRun>(() =>
     createGachaTraceRun({
       runId: "waiting-for-first-run",
@@ -95,14 +122,18 @@ export default function SandboxTraceLab({
       startedAt: 0,
     }),
   );
+  const activeRunIdRef = useRef(run.runId);
+  const backpackChecksRef = useRef(new Set<string>());
   const [replayFrameIndex, setReplayFrameIndex] = useState(-1);
   const [isReplayPlaying, setIsReplayPlaying] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(1);
 
-  const activeBanner = useMemo(
-    () => banners.find((banner) => banner.id === activeBannerId) ?? banners[0],
-    [activeBannerId, banners],
+  const bannersById = useMemo(
+    () => new Map(banners.map((banner) => [banner.id, banner])),
+    [banners],
   );
+  const activeBanner = bannersById.get(activeBannerId) ?? banners[0];
+  const traceBannerLabel = bannersById.get(run.bannerId)?.name ?? run.bannerId ?? "未知卡池";
   const requiredBalance = pullCount * ASTRITE_PER_PULL;
   const balanceKnown = typeof balanceMinor === "number";
   const insufficientBalance = balanceKnown && balanceMinor < requiredBalance;
@@ -113,10 +144,10 @@ export default function SandboxTraceLab({
     pendingOperation.count === pullCount
       ? pendingOperation
       : null;
+  const isCheckingBackpack = checkingBackpackRunIds.has(run.runId);
   const canPull =
     Boolean(activeBanner) &&
     !isPulling &&
-    !isCheckingBackpack &&
     (!insufficientBalance || Boolean(recoverableOperation));
   const replayFrames = useMemo(
     () => (run.status === "idle" || run.status === "running" ? [] : buildGachaReplayFrames(run)),
@@ -140,6 +171,22 @@ export default function SandboxTraceLab({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void loadSandboxInitialState().then((result) => {
+      if (cancelled || !result.ok || hasStartedPullRef.current) {
+        return;
+      }
+      setBalanceMinor(result.balanceMinor);
+      setResults(result.history);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isReplayPlaying || replayFrameIndex < 0 || replayFrames.length === 0) {
       return;
     }
@@ -155,6 +202,13 @@ export default function SandboxTraceLab({
     return () => window.clearTimeout(timerId);
   }, [isReplayPlaying, replayDurationMs, replayFrameIndex, replayFrames.length]);
 
+  const recordKafkaSignals = useCallback((signals: KafkaMonitorSignal[]) => {
+    if (!signals.length) {
+      return;
+    }
+    setKafkaMessages((current) => mergeKafkaMonitorSignals(current, signals));
+  }, []);
+
   const replayTargetNodeId = activeReplayFrame?.targetNodeId;
   useEffect(() => {
     if (!replayTargetNodeId) {
@@ -165,11 +219,12 @@ export default function SandboxTraceLab({
   }, [replayTargetNodeId]);
 
   const checkBackpack = async (runId: string, eventId: string, manual = false) => {
-    if (isCheckingBackpack) {
+    if (backpackChecksRef.current.has(runId)) {
       return;
     }
 
-    setIsCheckingBackpack(true);
+    backpackChecksRef.current.add(runId);
+    setCheckingBackpackRunIds((current) => new Set(current).add(runId));
     try {
       const backpack = await syncGachaBackpackAfterPull({ eventId });
       setRun((current) => {
@@ -202,7 +257,33 @@ export default function SandboxTraceLab({
         });
       });
 
+      if (activeRunIdRef.current !== runId) {
+        return;
+      }
+
       if (backpack.ok) {
+        recordKafkaSignals([
+          {
+            requestId: null,
+            eventId: backpack.event.event_id,
+            stage: "consumed",
+            at: backpack.event.received_at,
+            stateVersion: backpack.event.state_version,
+            errorCode: null,
+            payload: {
+              topic: KAFKA_MONITOR_TOPIC,
+              consumer_group: KAFKA_MONITOR_CONSUMER_GROUP,
+              event_id: backpack.event.event_id,
+              event_type: backpack.event.event_type,
+              banner_id: backpack.event.banner_id,
+              state_version: backpack.event.state_version,
+              previous_pity: backpack.event.previous_pity,
+              next_pity: backpack.event.next_pity,
+              received_at: backpack.event.received_at,
+              record_count: backpack.eventRecords.length,
+            },
+          },
+        ]);
         setSelectedNodeId("backpack-db");
         if (manual) {
           toast.success("Backpack 已消费事件，背包与抽卡记录已确认。");
@@ -226,10 +307,17 @@ export default function SandboxTraceLab({
             })
           : current,
       );
-      setSelectedNodeId("backpack");
-      toast.error(message);
+      if (activeRunIdRef.current === runId) {
+        setSelectedNodeId("backpack");
+        toast.error(message);
+      }
     } finally {
-      setIsCheckingBackpack(false);
+      backpackChecksRef.current.delete(runId);
+      setCheckingBackpackRunIds((current) => {
+        const next = new Set(current);
+        next.delete(runId);
+        return next;
+      });
     }
   };
 
@@ -265,6 +353,128 @@ export default function SandboxTraceLab({
     setSelectedNodeId(nodeId);
     setIsInspectorOpen(true);
   }, []);
+
+  const loadHistoricalTrace = useCallback(
+    (trace: GachaHistoricalTrace) => {
+      hasStartedPullRef.current = true;
+      activeRunIdRef.current = trace.run.runId;
+      setRun(trace.run);
+      setResults(trace.results);
+      setSelectedNodeId(trace.run.failedNodeId ?? "gateway");
+      setReplayFrameIndex(-1);
+      setIsReplayPlaying(false);
+      setIsInspectorOpen(false);
+      setTraceSource("history");
+      if (trace.entry.bannerId && bannersById.has(trace.entry.bannerId)) {
+        setActiveBannerId(trace.entry.bannerId);
+      }
+      if (trace.entry.count) {
+        setPullCount(trace.entry.count);
+      }
+    },
+    [bannersById],
+  );
+
+  const loadConcurrencyTrace = useCallback(
+    (trace: GachaConcurrencyTrace) => {
+      hasStartedPullRef.current = true;
+      activeRunIdRef.current = trace.run.runId;
+      setRun(trace.run);
+      setResults(trace.results);
+      setSelectedNodeId(trace.run.failedNodeId ?? "gateway");
+      setReplayFrameIndex(-1);
+      setIsReplayPlaying(false);
+      setIsInspectorOpen(false);
+      setTraceSource("concurrency");
+      if (bannersById.has(trace.run.bannerId)) {
+        setActiveBannerId(trace.run.bannerId);
+      }
+      setPullCount(trace.run.count);
+    },
+    [bannersById],
+  );
+
+  const recordConcurrencyBatch = useCallback(
+    (batch: GachaConcurrencyBatch) => {
+      const signals = batch.requests.flatMap((item): KafkaMonitorSignal[] => {
+        if (item.ok && item.eventId) {
+          return [
+            {
+              requestId: item.requestId,
+              eventId: item.eventId,
+              stage: "published",
+              at: item.finishedAt,
+              stateVersion: item.stateVersion,
+              errorCode: null,
+              payload: {
+                topic: KAFKA_MONITOR_TOPIC,
+                producer: "gacha-engine",
+                event_id: item.eventId,
+                event_type: KAFKA_MONITOR_TOPIC,
+                request_id: item.requestId,
+                banner_id: batch.bannerId,
+                state_version: item.stateVersion,
+                next_pity: item.nextPity ?? null,
+                records: item.records,
+              },
+            },
+          ];
+        }
+
+        if (!item.ok && item.errorCode === "kafka_unavailable") {
+          return [
+            {
+              requestId: item.requestId,
+              eventId: null,
+              stage: "publish_failed",
+              at: item.finishedAt,
+              stateVersion: null,
+              errorCode: item.errorCode,
+              payload: {
+                topic: KAFKA_MONITOR_TOPIC,
+                producer: "gacha-engine",
+                request_id: item.requestId,
+                banner_id: batch.bannerId,
+                count: batch.count,
+                error: {
+                  code: item.errorCode,
+                  message: item.errorMessage,
+                },
+              },
+            },
+          ];
+        }
+
+        return [];
+      });
+
+      recordKafkaSignals(signals);
+    },
+    [recordKafkaSignals],
+  );
+
+  const openComparison = useCallback((nextComparison: GachaTraceComparison) => {
+    setComparison(nextComparison);
+    setIsComparisonOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!initialRequestId || initialRequestLoadedRef.current) {
+      return;
+    }
+
+    initialRequestLoadedRef.current = true;
+    setIsLoadingInitialTrace(true);
+    void loadHistoricalGachaTrace({ requestId: initialRequestId }).then((result) => {
+      setIsLoadingInitialTrace(false);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      loadHistoricalTrace(result.trace);
+      toast.success("历史调用已载入");
+    });
+  }, [initialRequestId, loadHistoricalTrace]);
 
   const executePull = async () => {
     if (!activeBanner || isPulling) {
@@ -312,16 +522,20 @@ export default function SandboxTraceLab({
     );
 
     savePendingOperation(operation);
+    hasStartedPullRef.current = true;
     setPendingOperation(operation);
     setReplayFrameIndex(-1);
     setIsReplayPlaying(false);
     setIsInspectorOpen(false);
+    setTraceSource("live");
+    activeRunIdRef.current = runId;
     setRun(initialRun);
     setSelectedNodeId("next");
     setIsPulling(true);
 
     try {
-      const result = await drawGachaPull({
+      const pullAction = isRecovery ? recoverGachaPull : drawGachaPull;
+      const result = await pullAction({
         bannerId: operation.bannerId,
         count: operation.count,
         idempotencyKey: operation.idempotencyKey,
@@ -340,11 +554,38 @@ export default function SandboxTraceLab({
         setRun(failedRun);
         setSelectedNodeId(failedRun.failedNodeId ?? "gacha");
 
-        if (result.code !== "kafka_unavailable") {
+        if (result.code === "kafka_unavailable") {
+          recordKafkaSignals([
+            {
+              requestId: result.requestId,
+              eventId: null,
+              stage: "publish_failed",
+              at: new Date(completedAt).toISOString(),
+              stateVersion: null,
+              errorCode: result.code,
+              payload: {
+                topic: KAFKA_MONITOR_TOPIC,
+                producer: "gacha-engine",
+                request_id: result.requestId,
+                banner_id: operation.bannerId,
+                count: operation.count,
+                error: { code: result.code, message: result.message },
+              },
+            },
+          ]);
+        }
+        if (result.preserveOperation) {
+          savePendingOperation(operation);
+          setPendingOperation(operation);
+        } else {
           clearPendingOperation();
           setPendingOperation(null);
         }
-        toast.error(result.message);
+        if (result.preserveOperation) {
+          toast.warning(result.message);
+        } else {
+          toast.error(result.message);
+        }
         void enrichRunWithAudit(runId, result.requestId);
         return;
       }
@@ -362,6 +603,27 @@ export default function SandboxTraceLab({
           records: result.records.map(mapGatewayTraceRecord),
         },
       });
+      recordKafkaSignals([
+        {
+          requestId: result.requestId,
+          eventId: result.eventId,
+          stage: "published",
+          at: new Date(completedAt).toISOString(),
+          stateVersion: result.stateVersion,
+          errorCode: null,
+          payload: {
+            topic: KAFKA_MONITOR_TOPIC,
+            producer: "gacha-engine",
+            event_id: result.eventId,
+            event_type: KAFKA_MONITOR_TOPIC,
+            request_id: result.requestId,
+            banner_id: operation.bannerId,
+            state_version: result.stateVersion,
+            next_pity: result.nextPity,
+            records: result.records,
+          },
+        },
+      ]);
       setRun(pulledRun);
       setSelectedNodeId("backpack");
       setResults(result.records.map(mapGatewayRecord));
@@ -373,7 +635,7 @@ export default function SandboxTraceLab({
       toast.success(`抽卡完成，获得 ${result.records.length} 项结果。`);
 
       void enrichRunWithAudit(runId, result.requestId);
-      await checkBackpack(runId, result.eventId);
+      void checkBackpack(runId, result.eventId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "抽卡请求状态未知。";
       const failedRun = reduceGachaTrace(initialRun, {
@@ -385,7 +647,9 @@ export default function SandboxTraceLab({
       });
       setRun(failedRun);
       setSelectedNodeId(failedRun.failedNodeId ?? "gateway");
-      toast.error(message);
+      savePendingOperation(operation);
+      setPendingOperation(operation);
+      toast.warning(message);
     } finally {
       setIsPulling(false);
     }
@@ -410,16 +674,17 @@ export default function SandboxTraceLab({
     setReplayFrameIndex(-1);
     setIsReplayPlaying(false);
     setIsInspectorOpen(false);
-    setRun(
-      createGachaTraceRun({
-        runId: "waiting-for-first-run",
-        bannerId: activeBanner?.id ?? "",
-        count: pullCount,
-        startedAt: 0,
-      }),
-    );
+    const resetRun = createGachaTraceRun({
+      runId: "waiting-for-first-run",
+      bannerId: activeBanner?.id ?? "",
+      count: pullCount,
+      startedAt: 0,
+    });
+    activeRunIdRef.current = resetRun.runId;
+    setRun(resetRun);
     setResults([]);
     setSelectedNodeId("gateway");
+    setTraceSource("live");
   };
 
   return (
@@ -447,6 +712,31 @@ export default function SandboxTraceLab({
 
         <div className="flex items-center gap-3">
           <RunStatus run={run} />
+          <button
+            type="button"
+            onClick={() => {
+              setHasOpenedConcurrency(true);
+              setIsConcurrencyOpen(true);
+            }}
+            disabled={isPulling}
+            className="flex h-8 items-center gap-2 border border-[#b8cadf] bg-[#f3f7fb] px-3 text-[10px] font-black text-[#486486] transition hover:border-[#7896b8] hover:text-[#243f61] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <MousePointerClick className="size-3.5" />
+            并发抽取
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(true)}
+            disabled={isLoadingInitialTrace}
+            className="flex h-8 items-center gap-2 border border-[#b9cbc2] bg-[#edf6f2] px-3 text-[10px] font-black text-[#2f6752] transition hover:border-[#71917f] hover:text-[#1f372c] disabled:cursor-wait disabled:opacity-60"
+          >
+            {isLoadingInitialTrace ? (
+              <LoaderCircle className="size-3.5 animate-spin" />
+            ) : (
+              <History className="size-3.5" />
+            )}
+            {isLoadingInitialTrace ? "载入中" : "历史调用"}
+          </button>
           <Link
             href="/admin/gacha/audit-logs"
             className="flex h-8 items-center gap-2 border border-[#d4ded9] bg-[#f8faf9] px-3 text-[10px] font-black text-[#5c6b63] transition hover:border-[#98aaa1] hover:text-[#1f372c]"
@@ -592,12 +882,17 @@ export default function SandboxTraceLab({
                 <span className={`size-2 rounded-full ${runStatusDot(run.status)}`} />
                 <h2 className="truncate text-xs font-black">{run.summary}</h2>
               </div>
-              <p className="mt-0.5 truncate text-[9px] font-semibold text-[#7a8780]">
-                {activeBanner?.name ?? "无可用卡池"} · {pullCount} 抽
-              </p>
+              <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[9px] font-semibold text-[#7a8780]">
+                <span className="truncate">{traceBannerLabel} · {run.count} 抽</span>
+                {traceSource === "history" ? (
+                  <span className="shrink-0 font-black text-[#496486]">历史</span>
+                ) : traceSource === "concurrency" ? (
+                  <span className="shrink-0 font-black text-[#8f5b16]">并发批次</span>
+                ) : null}
+              </div>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-black">
-              {run.eventId && run.nodes.backpack.errorCode === "pull_event_pending" ? (
+              {run.eventId && run.nodes.backpack.status === "waiting" ? (
                 <button
                   type="button"
                   onClick={() => void checkBackpack(run.runId, run.eventId!, true)}
@@ -609,7 +904,11 @@ export default function SandboxTraceLab({
                   ) : (
                     <RefreshCw className="size-3" />
                   )}
-                  {isCheckingBackpack ? "检查中" : "重新检查"}
+                  {isCheckingBackpack
+                    ? "检查中"
+                    : run.nodes.backpack.errorCode === "pull_event_pending"
+                      ? "重新检查"
+                      : "检查 Backpack"}
                 </button>
               ) : null}
               <TrafficLegend color="bg-[#287f92]" label="南北流量" />
@@ -645,6 +944,10 @@ export default function SandboxTraceLab({
         </section>
       </div>
 
+      <KafkaTopicMonitor
+        messages={kafkaMessages}
+        onSignalsReceived={recordKafkaSignals}
+      />
       <TraceNodeInspector
         run={run}
         nodeId={selectedNodeId}
@@ -652,6 +955,38 @@ export default function SandboxTraceLab({
         open={isInspectorOpen}
         onOpenChange={setIsInspectorOpen}
       />
+      {isHistoryOpen ? (
+        <TraceHistoryDialog
+          activeRequestId={run.requestId}
+          open={isHistoryOpen}
+          onOpenChange={setIsHistoryOpen}
+          onTraceLoaded={loadHistoricalTrace}
+          onComparisonLoaded={openComparison}
+        />
+      ) : null}
+      {hasOpenedConcurrency ? (
+        <TraceConcurrencyDialog
+          bannerId={activeBanner?.id ?? ""}
+          bannerName={activeBanner?.name ?? "未知卡池"}
+          count={pullCount}
+          balanceMinor={balanceMinor}
+          open={isConcurrencyOpen}
+          onOpenChange={setIsConcurrencyOpen}
+          onTraceLoaded={loadConcurrencyTrace}
+          onBalanceChange={setBalanceMinor}
+          onBatchStarted={() => {
+            hasStartedPullRef.current = true;
+          }}
+          onBatchCompleted={recordConcurrencyBatch}
+        />
+      ) : null}
+      {comparison ? (
+        <TraceComparisonDialog
+          comparison={comparison}
+          open={isComparisonOpen}
+          onOpenChange={setIsComparisonOpen}
+        />
+      ) : null}
     </main>
   );
 }
@@ -749,16 +1084,6 @@ function mapBackpackTraceResult(
       distinctItemCount: result.inventory.length,
       totalQuantity: result.inventory.reduce((total, item) => total + item.quantity, 0),
     },
-  };
-}
-
-function mapHistoryRecord(record: PullRecord): DisplayPullResult {
-  return {
-    id: record.id,
-    itemId: record.itemId,
-    itemName: record.itemName,
-    rarity: record.rarity,
-    isFeatured: record.isFeatured,
   };
 }
 

@@ -27,22 +27,32 @@ type RuleSetPityRuleKey = {
 };
 
 export async function deleteRuleSet(id: string) {
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("rule_sets").delete().eq("id", id);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("rule_sets")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function deleteRuleSets(ids: string[]) {
   const ruleSetIds = normalizeBulkTextValues(ids, "规则包");
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("rule_sets").delete().in("id", ruleSetIds);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("rule_sets")
+    .delete()
+    .eq("project_id", context.project.id)
+    .in("id", ruleSetIds);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function upsertRuleSet(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
 
   const id = getString(formData, "id", 100);
   const name = getString(formData, "name", 120);
@@ -58,6 +68,7 @@ export async function upsertRuleSet(formData: FormData) {
   }
 
   const payload = {
+    project_id: context.project.id,
     id,
     name,
     description: getString(formData, "description", 1000),
@@ -72,11 +83,12 @@ export async function upsertRuleSet(formData: FormData) {
 }
 
 export async function deleteRuleSetRarityRate(rule_set_id: string, rarity: number) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_rarity_rates")
     .delete()
+    .eq("project_id", context.project.id)
     .eq("rule_set_id", rule_set_id)
     .eq("rarity", rarity);
   if (error) throw new Error(error.message);
@@ -91,17 +103,19 @@ export async function deleteRuleSetRarityRates(keys: RuleSetRarityRateKey[]) {
     ]),
     "模板基础概率",
   );
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_rarity_rates")
     .delete()
+    .eq("project_id", context.project.id)
     .or(filter);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function upsertRuleSetRarityRate(formData: FormData) {
+  const { context, supabase } = await createGachaAdminClient();
   const rule_set_id = getString(formData, "rule_set_id", 100);
   const rarity = getInteger(formData, "rarity");
 
@@ -110,13 +124,13 @@ export async function upsertRuleSetRarityRate(formData: FormData) {
   }
 
   const payload = {
+    project_id: context.project.id,
     rule_set_id,
     rarity,
     base_rate_ppm: getInteger(formData, "base_rate_ppm"),
     roll_order: getInteger(formData, "roll_order", 1),
   };
 
-  const supabase = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("rule_set_rarity_rates").upsert(payload);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
@@ -127,11 +141,12 @@ export async function deleteRuleSetFeaturedRule(
   rarity: number,
   featured_group: string,
 ) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_featured_rules")
     .delete()
+    .eq("project_id", context.project.id)
     .eq("rule_set_id", rule_set_id)
     .eq("rarity", rarity)
     .eq("featured_group", featured_group);
@@ -148,17 +163,19 @@ export async function deleteRuleSetFeaturedRules(keys: RuleSetFeaturedRuleKey[])
     ]),
     "模板 UP 规则",
   );
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_featured_rules")
     .delete()
+    .eq("project_id", context.project.id)
     .or(filter);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function upsertRuleSetFeaturedRule(formData: FormData) {
+  const { context, supabase } = await createGachaAdminClient();
   const rule_set_id = getString(formData, "rule_set_id", 100);
   const rarity = getInteger(formData, "rarity");
   const featured_group = getString(formData, "featured_group", 40);
@@ -169,6 +186,7 @@ export async function upsertRuleSetFeaturedRule(formData: FormData) {
 
   const guaranteeStateKey = getString(formData, "guarantee_state_key", 100);
   const payload = {
+    project_id: context.project.id,
     rule_set_id,
     rarity,
     featured_group,
@@ -178,18 +196,18 @@ export async function upsertRuleSetFeaturedRule(formData: FormData) {
     guarantee_state_key: guaranteeStateKey || null,
   };
 
-  const supabase = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("rule_set_featured_rules").upsert(payload);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function deleteRuleSetPityRule(rule_set_id: string, rarity: number) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_pity_rules")
     .delete()
+    .eq("project_id", context.project.id)
     .eq("rule_set_id", rule_set_id)
     .eq("rarity", rarity);
   if (error) throw new Error(error.message);
@@ -204,17 +222,19 @@ export async function deleteRuleSetPityRules(keys: RuleSetPityRuleKey[]) {
     ]),
     "模板保底规则",
   );
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase
     .schema("gacha")
     .from("rule_set_pity_rules")
     .delete()
+    .eq("project_id", context.project.id)
     .or(filter);
   if (error) throw new Error(error.message);
   revalidateRuleSets();
 }
 
 export async function upsertRuleSetPityRule(formData: FormData) {
+  const { context, supabase } = await createGachaAdminClient();
   const rule_set_id = getString(formData, "rule_set_id", 100);
   const rarity = getInteger(formData, "rarity");
 
@@ -224,6 +244,7 @@ export async function upsertRuleSetPityRule(formData: FormData) {
 
   const softPityStart = getString(formData, "soft_pity_start", 10);
   const payload = {
+    project_id: context.project.id,
     rule_set_id,
     rarity,
     counter_key: getString(formData, "counter_key", 100),
@@ -233,7 +254,6 @@ export async function upsertRuleSetPityRule(formData: FormData) {
     resets_lower_rarity: formData.get("resets_lower_rarity") === "true",
   };
 
-  const supabase = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("rule_set_pity_rules").upsert(payload);
   if (error) throw new Error(error.message);
   revalidateRuleSets();

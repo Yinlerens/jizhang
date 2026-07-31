@@ -10,9 +10,11 @@ type BannerItemKey = {
 };
 
 export async function deleteBannerItem(banner_version_id: string, item_id: string) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   const { error } = await supabase.schema("gacha").from("banner_items")
     .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
     .eq("banner_version_id", banner_version_id)
     .eq("item_id", item_id);
   if (error) throw new Error(error.message);
@@ -27,18 +29,26 @@ export async function deleteBannerItems(keys: BannerItemKey[]) {
     ]),
     "卡池内容",
   );
-  const supabase = await createGachaAdminClient();
-  const { error } = await supabase.schema("gacha").from("banner_items").delete().or(filter);
+  const { context, supabase } = await createGachaAdminClient();
+  const { error } = await supabase
+    .schema("gacha")
+    .from("banner_items")
+    .delete()
+    .eq("project_id", context.project.id)
+    .eq("environment_id", context.environment.id)
+    .or(filter);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gacha/banner-items");
 }
 
 export async function upsertBannerItem(formData: FormData) {
-  const supabase = await createGachaAdminClient();
+  const { context, supabase } = await createGachaAdminClient();
   
   const featured_group = formData.get("featured_group") as string;
 
   const payload = {
+    project_id: context.project.id,
+    environment_id: context.environment.id,
     banner_version_id: formData.get("banner_version_id") as string,
     item_id: formData.get("item_id") as string,
     pool_group: formData.get("pool_group") as string || "standard",
