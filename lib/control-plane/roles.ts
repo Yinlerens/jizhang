@@ -17,6 +17,7 @@ export const CONTROL_CAPABILITIES = [
   "configuration:write",
   "release:manage",
   "audit:view",
+  "player-support:view",
   "organization:manage",
 ] as const;
 
@@ -26,9 +27,9 @@ const roleCapabilities: Record<ControlRole, readonly ControlCapability[]> = {
   owner: CONTROL_CAPABILITIES,
   admin: CONTROL_CAPABILITIES,
   designer: ["console:view", "campaign:manage", "configuration:read", "configuration:write"],
-  operator: ["console:view", "campaign:manage", "configuration:read", "release:manage", "audit:view"],
+  operator: ["console:view", "campaign:manage", "configuration:read", "release:manage", "audit:view", "player-support:view"],
   reviewer: ["console:view", "configuration:read", "audit:view"],
-  support: ["console:view", "configuration:read", "audit:view"],
+  support: ["console:view", "configuration:read", "audit:view", "player-support:view"],
   viewer: ["console:view", "configuration:read"],
 };
 

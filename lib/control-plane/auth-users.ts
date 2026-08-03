@@ -31,3 +31,14 @@ export async function findAuthUserByEmail(supabase: SupabaseClient, email: strin
   const users = await listAllAuthUsers(supabase);
   return users.find((user) => user.email?.toLowerCase() === normalizedEmail) ?? null;
 }
+
+export async function getAuthUserById(supabase: SupabaseClient, userId: string) {
+  const { data, error } = await supabase.auth.admin.getUserById(userId);
+  if (error) {
+    if (error.status === 404 || error.code === "user_not_found") {
+      return null;
+    }
+    throw new Error("无法读取玩家身份。", { cause: error });
+  }
+  return data.user;
+}

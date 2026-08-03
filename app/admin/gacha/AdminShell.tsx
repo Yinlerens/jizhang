@@ -9,6 +9,7 @@ import {
   FileSearch,
   FolderKanban,
   History,
+  Headset,
   LoaderCircle,
   LogOut,
   PackageSearch,
@@ -61,6 +62,12 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
   {
     label: "管理",
     items: [
+      {
+        href: "/console/players",
+        label: "玩家客服",
+        icon: Headset,
+        capability: "player-support:view",
+      },
       {
         href: "/console/team",
         label: "团队成员",
