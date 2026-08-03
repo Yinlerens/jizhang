@@ -33,6 +33,12 @@ test("exposes a read-only player support workspace in console navigation", () =>
   assert.match(gateway, /import "server-only"/);
   assert.match(gateway, /\/api\/v1\/admin\/player-support\/players\//);
   assert.doesNotMatch(gateway, /NEXT_PUBLIC/);
+  assert.doesNotMatch(
+    gateway,
+    /AuditLogListItem|BackpackPullEventsPage|BackpackPullRecordsPage/,
+  );
+  assert.doesNotMatch(gateway, /seed|request_body_preview|response_body_preview/);
+  assert.doesNotMatch(page, /@\/lib\/gateway\/(?:audit|backpack)/);
 });
 
 test("summarizes reward delivery gaps without hiding partial evidence", () => {
