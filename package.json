@@ -11,6 +11,7 @@
     "test:phase-4": "node --experimental-strip-types --test tests/phase-4-operator-console.test.ts",
     "test:phase-5": "node --experimental-strip-types --test tests/phase-5-opinionated-campaign.test.ts",
     "test:phase-6": "node --experimental-strip-types --test tests/phase-6-api-request-logs.test.ts",
+    "test:player-support": "node --experimental-strip-types --test tests/player-support.test.ts",
     "test:performance": "node --experimental-strip-types --test tests/route-performance.test.ts"
   },
   "dependencies": {
