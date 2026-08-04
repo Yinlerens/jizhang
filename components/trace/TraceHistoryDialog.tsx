@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   GitCompareArrows,
   History,
@@ -30,13 +30,15 @@ import type {
 } from "@/lib/trace/gacha-history";
 
 export default function TraceHistoryDialog({
-  activeRequestId,
+  activeOperationId,
+  playerId,
   open,
   onOpenChange,
   onTraceLoaded,
   onComparisonLoaded,
 }: {
-  activeRequestId: string | null;
+  activeOperationId: string | null;
+  playerId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTraceLoaded: (trace: GachaHistoricalTrace) => void;
@@ -46,15 +48,15 @@ export default function TraceHistoryDialog({
   const [query, setQuery] = useState("");
   const [listError, setListError] = useState("");
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [workingRequestId, setWorkingRequestId] = useState<string | null>(null);
+  const [workingOperationId, setWorkingOperationId] = useState<string | null>(null);
   const [isLoadingList, startListTransition] = useTransition();
   const [isLoadingTrace, startTraceTransition] = useTransition();
   const [isComparing, startCompareTransition] = useTransition();
 
-  const refreshHistory = () => {
+  const refreshHistory = useCallback(() => {
     startListTransition(async () => {
       setListError("");
-      const result = await loadGachaTraceHistory();
+      const result = await loadGachaTraceHistory({ playerId });
       setHasLoaded(true);
       if (!result.ok) {
         setListError(result.message);
@@ -62,14 +64,14 @@ export default function TraceHistoryDialog({
       }
       setEntries(result.entries);
     });
-  };
+  }, [playerId]);
 
   useEffect(() => {
     if (!open || hasLoaded) {
       return;
     }
     refreshHistory();
-  }, [hasLoaded, open]);
+  }, [hasLoaded, open, refreshHistory]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleEntries = useMemo(() => {
@@ -77,32 +79,32 @@ export default function TraceHistoryDialog({
       return entries;
     }
     return entries.filter((entry) =>
-      [entry.requestId, entry.bannerId, entry.errorCode, entry.errorMessage]
+      [operationIdOf(entry), entry.bannerId, entry.errorCode, entry.errorMessage]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalizedQuery)),
     );
   }, [entries, normalizedQuery]);
 
-  const loadTrace = (requestId: string) => {
-    setWorkingRequestId(requestId);
+  const loadTrace = (operationId: string) => {
+    setWorkingOperationId(operationId);
     startTraceTransition(async () => {
-      const result = await loadHistoricalGachaTrace({ requestId });
-      setWorkingRequestId(null);
+      const result = await loadHistoricalGachaTrace({ operationId, playerId });
+      setWorkingOperationId(null);
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
       onTraceLoaded(result.trace);
       onOpenChange(false);
-      toast.success("历史调用已载入");
+      toast.success("抽卡记录已载入");
     });
   };
 
-  const compareTrace = (requestId: string) => {
-    setWorkingRequestId(requestId);
+  const compareTrace = (operationId: string) => {
+    setWorkingOperationId(operationId);
     startCompareTransition(async () => {
-      const result = await compareHistoricalGachaTrace({ requestId });
-      setWorkingRequestId(null);
+      const result = await compareHistoricalGachaTrace({ operationId, playerId });
+      setWorkingOperationId(null);
       if (!result.ok) {
         toast.error(result.message);
         return;
@@ -133,10 +135,10 @@ export default function TraceHistoryDialog({
               </span>
               <div>
                 <DialogTitle className="text-base font-black tracking-normal text-[#17251e] normal-case">
-                  历史调用
+                  抽卡记录
                 </DialogTitle>
                 <DialogDescription className="sr-only">
-                  载入历史抽卡链路或与同卡池成功调用对比
+                  载入持久化抽卡链路或与同卡池成功记录对比
                 </DialogDescription>
               </div>
             </div>
@@ -157,8 +159,8 @@ export default function TraceHistoryDialog({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 className="h-10 w-full border border-[#cbd7d1] bg-[#f8faf9] pl-9 pr-3 font-mono text-[11px] font-semibold text-[#26362e] outline-none transition focus:border-[#527d69]"
-                placeholder="Request ID / 卡池 ID / 错误码"
-                aria-label="搜索历史调用"
+                placeholder="Operation ID / 卡池 ID / 错误码"
+                aria-label="搜索抽卡记录"
               />
             </label>
             <button
@@ -166,7 +168,7 @@ export default function TraceHistoryDialog({
               disabled={!query.trim() || busy}
               className="flex h-10 items-center justify-center gap-2 bg-[#1f372c] px-4 text-[10px] font-black text-white transition hover:bg-[#294b3b] disabled:cursor-not-allowed disabled:bg-[#aebbb4]"
             >
-              {isLoadingTrace && workingRequestId === query.trim() ? (
+              {isLoadingTrace && workingOperationId === query.trim() ? (
                 <LoaderCircle className="size-3.5 animate-spin" />
               ) : (
                 <Workflow className="size-3.5" />
@@ -178,8 +180,8 @@ export default function TraceHistoryDialog({
               onClick={refreshHistory}
               disabled={isLoadingList}
               className="flex size-10 items-center justify-center border border-[#cbd7d1] bg-white text-[#607068] transition hover:border-[#91a39a] hover:text-[#1f372c] disabled:opacity-50"
-              title="刷新历史调用"
-              aria-label="刷新历史调用"
+              title="刷新抽卡记录"
+              aria-label="刷新抽卡记录"
             >
               <RefreshCw className={`size-3.5 ${isLoadingList ? "animate-spin" : ""}`} />
             </button>
@@ -200,19 +202,20 @@ export default function TraceHistoryDialog({
                 <div className="hidden grid-cols-[150px_92px_minmax(160px,1fr)_84px_92px_176px] gap-3 border-b border-[#dce4e0] bg-[#f1f5f3] px-4 py-2 text-[9px] font-black text-[#77847d] md:grid">
                   <span>时间</span>
                   <span>结果</span>
-                  <span>卡池 / Request ID</span>
+                  <span>卡池 / Operation ID</span>
                   <span>抽数</span>
                   <span>耗时</span>
                   <span className="text-right">操作</span>
                 </div>
                 <div className="divide-y divide-[#e9eeeb]">
                   {visibleEntries.map((entry) => {
-                    const working = workingRequestId === entry.requestId && busy;
+                    const operationId = operationIdOf(entry);
+                    const working = workingOperationId === operationId && busy;
                     return (
                       <article
-                        key={entry.requestId}
+                        key={operationId}
                         className={`grid gap-3 px-4 py-3 transition md:grid-cols-[150px_92px_minmax(160px,1fr)_84px_92px_176px] md:items-center ${
-                          entry.requestId === activeRequestId ? "bg-[#edf6f2]" : "hover:bg-[#f8faf9]"
+                          operationId === activeOperationId ? "bg-[#edf6f2]" : "hover:bg-[#f8faf9]"
                         }`}
                       >
                         <div className="text-[10px] font-bold text-[#536159]">
@@ -223,8 +226,8 @@ export default function TraceHistoryDialog({
                           <div className="truncate text-[11px] font-black text-[#24332b]">
                             {entry.bannerId ?? "未知卡池"}
                           </div>
-                          <div className="mt-0.5 truncate font-mono text-[9px] text-[#87938d]" title={entry.requestId}>
-                            {entry.requestId}
+                          <div className="mt-0.5 truncate font-mono text-[9px] text-[#87938d]" title={operationId}>
+                            {operationId}
                           </div>
                           {entry.errorCode ? (
                             <div className="mt-1 truncate font-mono text-[9px] font-bold text-[#b23b41]" title={entry.errorMessage ?? entry.errorCode}>
@@ -241,7 +244,7 @@ export default function TraceHistoryDialog({
                         <div className="flex justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => loadTrace(entry.requestId)}
+                            onClick={() => loadTrace(operationId)}
                             disabled={busy}
                             className="flex h-8 items-center gap-1.5 border border-[#cbd7d1] bg-white px-2.5 text-[9px] font-black text-[#52635a] transition hover:border-[#7f978b] hover:text-[#1f372c] disabled:opacity-40"
                           >
@@ -254,10 +257,10 @@ export default function TraceHistoryDialog({
                           </button>
                           <button
                             type="button"
-                            onClick={() => compareTrace(entry.requestId)}
+                            onClick={() => compareTrace(operationId)}
                             disabled={busy || !entry.bannerId || !entry.count}
                             className="flex h-8 items-center gap-1.5 border border-[#b8cadf] bg-[#f3f7fb] px-2.5 text-[9px] font-black text-[#496486] transition hover:border-[#7896b8] hover:text-[#243f61] disabled:opacity-40"
-                            title="与同卡池成功调用对比"
+                            title="与同卡池成功记录对比"
                           >
                             {working && isComparing ? (
                               <LoaderCircle className="size-3 animate-spin" />
@@ -274,7 +277,7 @@ export default function TraceHistoryDialog({
               </div>
             ) : (
               <div className="flex h-40 items-center justify-center border border-dashed border-[#cbd7d1] bg-white text-xs font-bold text-[#87938d]">
-                没有匹配的抽卡调用
+                没有匹配的抽卡记录
               </div>
             )}
           </div>
@@ -282,6 +285,10 @@ export default function TraceHistoryDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function operationIdOf(entry: GachaTraceHistoryEntry) {
+  return entry.operationId ?? entry.requestId ?? "";
 }
 
 function OutcomeBadge({ entry }: { entry: GachaTraceHistoryEntry }) {

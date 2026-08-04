@@ -55,7 +55,10 @@ function packetEvidence(packet: unknown, fallback: TraceEvidence): TraceEvidence
     packet &&
     typeof packet === "object" &&
     "evidence" in packet &&
-    (packet.evidence === "observed" || packet.evidence === "derived" || packet.evidence === "pending")
+    (packet.evidence === "observed" ||
+      packet.evidence === "durable" ||
+      packet.evidence === "derived" ||
+      packet.evidence === "pending")
   ) {
     return packet.evidence;
   }

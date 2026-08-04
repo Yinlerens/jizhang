@@ -9,6 +9,8 @@ import {
   toGachaTraceHistoryEntry,
   type GachaTraceHistoryEntry,
 } from "../lib/trace/gacha-history.ts";
+import { createGachaOperationTrace } from "../lib/trace/gacha-operation-replay.ts";
+import type { PlayerSupportPullReplayResponse } from "../lib/gateway/player-support.ts";
 import { createLoginPath } from "../lib/auth/redirect.ts";
 
 const successfulAudit = {
@@ -134,7 +136,7 @@ test("maps audit list previews into compact history entries", () => {
   assert.deepEqual(history, entry({ requestId: successfulAudit.requestId }));
 });
 
-test("exposes history loading and success comparison from the Sandbox", () => {
+test("exposes durable pull history and success comparison from the Sandbox", () => {
   const lab = read("../app/SandboxTraceLab.tsx");
   const actions = read("../app/gacha/actions.ts");
   const historyDialog = read("../components/trace/TraceHistoryDialog.tsx");
@@ -142,35 +144,75 @@ test("exposes history loading and success comparison from the Sandbox", () => {
 
   assert.match(lab, /TraceHistoryDialog/);
   assert.match(lab, /TraceComparisonDialog/);
-  assert.match(lab, /历史调用/);
+  assert.match(lab, /抽卡记录/);
+  assert.doesNotMatch(lab, /API 记录/);
   assert.match(actions, /export async function loadGachaTraceHistory/);
   assert.match(actions, /export async function loadHistoricalGachaTrace/);
   assert.match(actions, /export async function compareHistoricalGachaTrace/);
   assert.match(actions, /getAuthenticatedSession\(\)/);
-  assert.match(historyDialog, /同卡池成功调用/);
+  assert.match(actions, /getPlayerSupport/);
+  assert.match(actions, /getPlayerPullReplay/);
+  assert.match(historyDialog, /Operation ID/);
+  assert.match(historyDialog, /同卡池成功记录/);
+  assert.doesNotMatch(historyDialog, /Request ID/);
   assert.match(comparisonDialog, /数据包差异/);
 });
 
-test("opens an audited Gacha request directly in the Sandbox", () => {
+test("opens a persisted pull operation directly in the Sandbox", () => {
   const sandboxRoute = read("../app/sandbox/page.tsx");
   const lab = read("../app/SandboxTraceLab.tsx");
-  const auditLogs = read("../app/admin/gacha/audit-logs/page.tsx");
+  const playerSupport = read("../app/console/players/page.tsx");
 
   assert.match(sandboxRoute, /searchParams/);
-  assert.match(sandboxRoute, /initialRequestId/);
+  assert.match(sandboxRoute, /initialOperationId/);
+  assert.match(sandboxRoute, /initialPlayerId/);
+  assert.doesNotMatch(sandboxRoute, /request_id/);
   assert.match(lab, /loadHistoricalGachaTrace/);
-  assert.match(lab, /initialRequestId/);
-  assert.match(auditLogs, /\/sandbox\?request_id=/);
-  assert.match(auditLogs, /在 Sandbox 打开/);
+  assert.match(lab, /initialOperationId/);
+  assert.match(lab, /initialPlayerId/);
+  assert.match(playerSupport, /operation_id/);
+  assert.match(playerSupport, /player_id/);
 });
 
-test("preserves the audited request id through the login redirect", () => {
-  const nextPath = "/sandbox?request_id=11111111-1111-4111-8111-111111111111";
+test("preserves the player and operation ids through the login redirect", () => {
+  const nextPath = "/sandbox?player_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&operation_id=11111111-1111-4111-8111-111111111111";
 
   assert.equal(
     createLoginPath(nextPath),
-    "/login?next=%2Fsandbox%3Frequest_id%3D11111111-1111-4111-8111-111111111111",
+    "/login?next=%2Fsandbox%3Fplayer_id%3Daaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa%26operation_id%3D11111111-1111-4111-8111-111111111111",
   );
+});
+
+test("replays a successful pull entirely from durable operation evidence", () => {
+  const trace = createGachaOperationTrace(successfulOperationReplay());
+
+  assert.equal(trace.entry.operationId, "77777777-7777-4777-8777-777777777777");
+  assert.equal(trace.entry.requestId, null);
+  assert.equal(trace.run.operationId, trace.entry.operationId);
+  assert.equal(trace.run.requestId, null);
+  assert.equal(trace.run.status, "success");
+  assert.equal(trace.run.nodes.gacha.evidence, "durable");
+  assert.equal(trace.run.nodes.asset.status, "success");
+  assert.equal(trace.run.nodes.backpack.status, "success");
+  assert.equal(trace.run.nodes["backpack-db"].status, "success");
+  assert.equal(trace.results[0]?.itemName, "五星角色");
+});
+
+test("marks unavailable replay evidence as pending instead of a business failure", () => {
+  const replay = successfulOperationReplay();
+  replay.partial = true;
+  replay.asset_spend = {
+    status: "unavailable",
+    data: null,
+    error: { code: "upstream_unavailable", message: "asset service is unavailable" },
+  };
+
+  const trace = createGachaOperationTrace(replay);
+
+  assert.equal(trace.run.status, "waiting");
+  assert.equal(trace.run.failedNodeId, null);
+  assert.equal(trace.run.nodes.asset.status, "waiting");
+  assert.equal(trace.run.nodes.asset.evidence, "pending");
 });
 
 function entry(overrides: Partial<GachaTraceHistoryEntry> = {}): GachaTraceHistoryEntry {
@@ -185,6 +227,82 @@ function entry(overrides: Partial<GachaTraceHistoryEntry> = {}): GachaTraceHisto
     count: 10,
     outcome: "success",
     ...overrides,
+  };
+}
+
+function successfulOperationReplay(): PlayerSupportPullReplayResponse {
+  return {
+    player_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    generated_at: "2026-07-27T04:00:01.000Z",
+    partial: false,
+    operation: {
+      operation_id: "77777777-7777-4777-8777-777777777777",
+      request_id: null,
+      status: "succeeded",
+      request: {
+        source: "persisted_result",
+        banner_id: "banner-limited",
+        banner_version_id: "version-7",
+        pity_group_id: "limited-character",
+        count: 10,
+        seed: "persisted-seed",
+        event_id: "22222222-2222-4222-8222-222222222222",
+        amount_minor: 1600,
+        accepted_at: "2026-07-27T04:00:00.000Z",
+      },
+      response: successfulAudit.responseBody,
+      event: {
+        event_id: "22222222-2222-4222-8222-222222222222",
+        event_type: "gacha.pull_completed.v1",
+      },
+      error: null,
+      created_at: "2026-07-27T04:00:00.000Z",
+      updated_at: "2026-07-27T04:00:00.120Z",
+    },
+    asset_spend: {
+      status: "ok",
+      data: {
+        id: "ledger-1",
+        idempotency_key: "spend:gacha-pull:22222222-2222-4222-8222-222222222222",
+        delta_minor: -1600,
+        balance_before_minor: 3200,
+        balance_after_minor: 1600,
+        reason: "gacha_pull",
+        created_at: "2026-07-27T04:00:00.020Z",
+      },
+    },
+    backpack_delivery: {
+      status: "ok",
+      data: {
+        event: {
+          event_id: "22222222-2222-4222-8222-222222222222",
+          event_type: "gacha.pull_completed.v1",
+          banner_id: "banner-limited",
+          seed: "persisted-seed",
+          state_version: 9,
+          previous_pity: { since_five: 8 },
+          next_pity: { since_five: 18 },
+          received_at: "2026-07-27T04:00:00.100Z",
+        },
+        records: [
+          {
+            id: "record-1",
+            event_id: "22222222-2222-4222-8222-222222222222",
+            index: 0,
+            item_id: "item-five",
+            item_name: "五星角色",
+            item_type: "character",
+            rarity: 5,
+            banner_id: "banner-limited",
+            banner_name: "限定角色池",
+            pity_at_five: 9,
+            pity_at_four: 1,
+            is_featured: true,
+            received_at: "2026-07-27T04:00:00.100Z",
+          },
+        ],
+      },
+    },
   };
 }
 

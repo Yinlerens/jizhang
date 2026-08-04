@@ -18,12 +18,12 @@ export type TraceNodeStatus =
   | "success"
   | "error"
   | "skipped";
-export type TraceEvidence = "observed" | "derived" | "pending";
+export type TraceEvidence = "observed" | "durable" | "derived" | "pending";
 export type TraceRunStatus = "idle" | "running" | "waiting" | "success" | "error";
 
 export type TracePacketEnvelope = {
   evidence: TraceEvidence;
-  evidenceLabel: "实测" | "路径判定" | "待确认";
+  evidenceLabel: "实测" | "持久记录" | "路径判定" | "待确认";
   direction: "request" | "response";
   protocol: string;
   note: string;
@@ -107,6 +107,7 @@ export type GachaTraceAuditSnapshot = {
 
 export type GachaTraceRun = {
   runId: string;
+  operationId: string | null;
   requestId: string | null;
   eventId: string | null;
   bannerId: string;
@@ -336,6 +337,7 @@ export function createGachaTraceRun({
 }): GachaTraceRun {
   return {
     runId,
+    operationId: null,
     requestId: null,
     eventId: null,
     bannerId,
@@ -984,6 +986,7 @@ function pendingPacket(direction: TracePacketEnvelope["direction"], note: string
 function evidenceLabel(evidence: TraceEvidence): TracePacketEnvelope["evidenceLabel"] {
   const labels: Record<TraceEvidence, TracePacketEnvelope["evidenceLabel"]> = {
     observed: "实测",
+    durable: "持久记录",
     derived: "路径判定",
     pending: "待确认",
   };

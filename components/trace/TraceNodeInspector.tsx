@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 
 import {
   Dialog,
@@ -37,11 +37,12 @@ export default function TraceNodeInspector({
   const node = run.nodes[nodeId];
   const definition = GACHA_TRACE_NODE_DEFINITIONS[nodeId];
 
-  const copyRequestId = async () => {
-    if (!run.requestId) {
+  const stableReference = run.operationId ?? run.requestId;
+  const copyReference = async () => {
+    if (!stableReference) {
       return;
     }
-    await navigator.clipboard.writeText(run.requestId);
+    await navigator.clipboard.writeText(stableReference);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1_200);
   };
@@ -172,18 +173,19 @@ export default function TraceNodeInspector({
                 <section className="space-y-3 border-t border-[#e2e8e5] pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
                   <KeyValue label="Run ID" value={run.runId} mono />
                   <div className="flex items-start justify-between gap-2">
-                    <KeyValue label="Request ID" value={run.requestId ?? "尚未生成"} mono />
+                    <KeyValue label="Operation ID" value={run.operationId ?? "尚未生成"} mono />
                     <button
                       type="button"
                       className="mt-4 flex size-8 shrink-0 items-center justify-center border border-[#d6dfda] bg-white text-[#607068] transition hover:border-[#9baba3] hover:text-[#1d3027] disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={!run.requestId}
-                      onClick={() => void copyRequestId()}
-                      title="复制 Request ID"
-                      aria-label="复制 Request ID"
+                      disabled={!stableReference}
+                      onClick={() => void copyReference()}
+                      title={run.operationId ? "复制 Operation ID" : "复制 Request ID"}
+                      aria-label={run.operationId ? "复制 Operation ID" : "复制 Request ID"}
                     >
                       {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </button>
                   </div>
+                  <KeyValue label="Request ID" value={run.requestId ?? "未记录"} mono />
                   <KeyValue label="Event ID" value={run.eventId ?? "尚未生成"} mono />
                 </section>
               </div>
@@ -200,15 +202,6 @@ export default function TraceNodeInspector({
             )}
           </div>
 
-          {run.requestId ? (
-            <a
-              href={`/admin/gacha/audit-logs?request_id=${encodeURIComponent(run.requestId)}`}
-              className="flex h-11 shrink-0 items-center justify-center gap-2 border-t border-[#dce4e0] bg-[#f8faf9] text-[10px] font-black text-[#53635b] transition hover:bg-[#edf2ef] hover:text-[#1d3027]"
-            >
-              API 请求记录
-              <ExternalLink className="size-3.5" />
-            </a>
-          ) : null}
         </div>
       </DialogContent>
     </Dialog>
@@ -316,7 +309,7 @@ function statusBadge(status: GachaTraceRun["nodes"][GachaTraceNodeId]["status"])
 }
 
 function evidenceLabel(evidence: GachaTraceRun["nodes"][GachaTraceNodeId]["evidence"]) {
-  return { observed: "实测", derived: "路径判定", pending: "待确认" }[evidence];
+  return { observed: "实测", durable: "持久记录", derived: "路径判定", pending: "待确认" }[evidence];
 }
 
 function trafficLabel(traffic: (typeof GACHA_TRACE_NODE_DEFINITIONS)[GachaTraceNodeId]["traffic"]) {

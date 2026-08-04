@@ -159,8 +159,11 @@ function CallSummary({
           {formatDuration(entry.durationMs)}
         </span>
       </div>
-      <div className="mt-2 truncate font-mono text-[9px] text-[#87938d]" title={entry.requestId}>
-        {entry.requestId}
+      <div
+        className="mt-2 truncate font-mono text-[9px] text-[#87938d]"
+        title={entry.operationId ?? entry.requestId ?? "未记录"}
+      >
+        {entry.operationId ?? entry.requestId ?? "未记录"}
       </div>
       {entry.errorCode ? (
         <div className="mt-2 truncate font-mono text-[10px] font-black text-[#b1343a]" title={entry.errorMessage ?? entry.errorCode}>

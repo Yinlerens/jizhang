@@ -12,7 +12,8 @@ import {
 export type GachaTraceHistoryOutcome = "success" | "error" | "pending";
 
 export type GachaTraceHistoryEntry = {
-  requestId: string;
+  operationId?: string;
+  requestId: string | null;
   startedAt: string;
   durationMs: number | null;
   responseStatus: number | null;
@@ -182,7 +183,7 @@ export function selectGachaTraceBaseline(
 
   for (const candidate of candidates) {
     if (
-      candidate.requestId === target.requestId ||
+      (candidate.operationId ?? candidate.requestId) === (target.operationId ?? target.requestId) ||
       candidate.outcome !== "success" ||
       candidate.bannerId !== target.bannerId ||
       candidate.count !== target.count

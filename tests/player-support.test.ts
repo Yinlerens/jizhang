@@ -28,7 +28,10 @@ test("exposes a read-only player support workspace in console navigation", () =>
   assert.match(page, /扣款与资产/);
   assert.match(page, /抽卡与保底/);
   assert.match(page, /奖励到账/);
-  assert.match(page, /最近 API 请求/);
+  assert.doesNotMatch(page, /最近 API 请求|API 请求记录/);
+  assert.match(page, /operation_id/);
+  assert.match(page, /player_id/);
+  assert.match(page, /在 Sandbox 重放本次抽卡/);
   assert.doesNotMatch(page, /creditAssets|补发|修改余额|修改保底/);
   assert.match(gateway, /import "server-only"/);
   assert.match(gateway, /\/api\/v1\/admin\/player-support\/players\//);
@@ -37,7 +40,8 @@ test("exposes a read-only player support workspace in console navigation", () =>
     gateway,
     /AuditLogListItem|BackpackPullEventsPage|BackpackPullRecordsPage/,
   );
-  assert.doesNotMatch(gateway, /seed|request_body_preview|response_body_preview/);
+  assert.doesNotMatch(gateway, /request_body_preview|response_body_preview/);
+  assert.doesNotMatch(gateway, /api_calls/);
   assert.doesNotMatch(page, /@\/lib\/gateway\/(?:audit|backpack)/);
 });
 

@@ -24,15 +24,22 @@ export default function HomePage() {
 }
 
 export async function SandboxPage({
-  initialRequestId,
+  initialOperationId,
+  initialPlayerId,
 }: {
-  initialRequestId?: string;
+  initialOperationId?: string;
+  initialPlayerId?: string;
 } = {}) {
   const adminClient = await createGachaAdminClientResult("configuration:read");
   if (!adminClient.ok && adminClient.reason === "unauthenticated") {
-    const nextPath = initialRequestId
-      ? `/sandbox?${new URLSearchParams({ request_id: initialRequestId })}`
-      : "/sandbox";
+    const replayParams = new URLSearchParams();
+    if (initialOperationId) {
+      replayParams.set("operation_id", initialOperationId);
+      if (initialPlayerId) {
+        replayParams.set("player_id", initialPlayerId);
+      }
+    }
+    const nextPath = replayParams.size ? `/sandbox?${replayParams}` : "/sandbox";
     redirect(createLoginPath(nextPath));
   }
   if (!adminClient.ok) {
@@ -45,7 +52,13 @@ export async function SandboxPage({
     adminClient.context.environment.id,
   );
 
-  return <SandboxTraceLab banners={catalog.banners} initialRequestId={initialRequestId} />;
+  return (
+    <SandboxTraceLab
+      banners={catalog.banners}
+      initialOperationId={initialOperationId}
+      initialPlayerId={initialPlayerId}
+    />
+  );
 }
 
 async function loadCatalog(

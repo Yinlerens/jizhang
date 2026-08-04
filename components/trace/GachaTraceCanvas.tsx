@@ -519,6 +519,7 @@ function statusLabel(status: TraceNodeSnapshot["status"]) {
 function evidenceLabel(evidence: TraceNodeSnapshot["evidence"]) {
   return {
     observed: "实测",
+    durable: "持久记录",
     derived: "路径判定",
     pending: "待确认",
   }[evidence];

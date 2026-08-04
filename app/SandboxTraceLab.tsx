@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CirclePlay,
-  FileClock,
   History,
   LoaderCircle,
   MousePointerClick,
@@ -73,7 +72,8 @@ const TraceComparisonDialog = dynamic(
 
 type SandboxTraceLabProps = {
   banners: Banner[];
-  initialRequestId?: string;
+  initialOperationId?: string;
+  initialPlayerId?: string;
 };
 
 type DisplayPullResult = {
@@ -92,7 +92,11 @@ type PendingOperation = {
 
 const PENDING_OPERATION_KEY = "gachaops:trace-lab:pending-pull:v1";
 
-export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTraceLabProps) {
+export default function SandboxTraceLab({
+  banners,
+  initialOperationId,
+  initialPlayerId,
+}: SandboxTraceLabProps) {
   const [activeBannerId, setActiveBannerId] = useState(banners[0]?.id ?? "");
   const [pullCount, setPullCount] = useState<1 | 10>(10);
   const [isPulling, setIsPulling] = useState(false);
@@ -107,13 +111,15 @@ export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTr
   const [isConcurrencyOpen, setIsConcurrencyOpen] = useState(false);
   const [hasOpenedConcurrency, setHasOpenedConcurrency] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
-  const [isLoadingInitialTrace, setIsLoadingInitialTrace] = useState(Boolean(initialRequestId));
+  const [isLoadingInitialTrace, setIsLoadingInitialTrace] = useState(
+    Boolean(initialOperationId),
+  );
   const [comparison, setComparison] = useState<GachaTraceComparison | null>(null);
   const [traceSource, setTraceSource] = useState<"live" | "history" | "concurrency">("live");
   const [results, setResults] = useState<DisplayPullResult[]>([]);
   const [kafkaMessages, setKafkaMessages] = useState<KafkaMonitorMessage[]>([]);
   const hasStartedPullRef = useRef(false);
-  const initialRequestLoadedRef = useRef(false);
+  const initialOperationLoadedRef = useRef(false);
   const [run, setRun] = useState<GachaTraceRun>(() =>
     createGachaTraceRun({
       runId: "waiting-for-first-run",
@@ -459,22 +465,25 @@ export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTr
   }, []);
 
   useEffect(() => {
-    if (!initialRequestId || initialRequestLoadedRef.current) {
+    if (!initialOperationId || initialOperationLoadedRef.current) {
       return;
     }
 
-    initialRequestLoadedRef.current = true;
+    initialOperationLoadedRef.current = true;
     setIsLoadingInitialTrace(true);
-    void loadHistoricalGachaTrace({ requestId: initialRequestId }).then((result) => {
+    void loadHistoricalGachaTrace({
+      operationId: initialOperationId,
+      playerId: initialPlayerId,
+    }).then((result) => {
       setIsLoadingInitialTrace(false);
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
       loadHistoricalTrace(result.trace);
-      toast.success("历史调用已载入");
+      toast.success("抽卡记录已载入");
     });
-  }, [initialRequestId, loadHistoricalTrace]);
+  }, [initialOperationId, initialPlayerId, loadHistoricalTrace]);
 
   const executePull = async () => {
     if (!activeBanner || isPulling) {
@@ -705,7 +714,7 @@ export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTr
               <h1 className="truncate text-sm font-black">GachaOps Trace Lab</h1>
             </div>
             <p className="mt-0.5 truncate font-mono text-[9px] text-[#839088]">
-              {run.requestId ?? "NO ACTIVE REQUEST"}
+              {run.operationId ?? run.requestId ?? "NO ACTIVE OPERATION"}
             </p>
           </div>
         </div>
@@ -735,15 +744,8 @@ export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTr
             ) : (
               <History className="size-3.5" />
             )}
-            {isLoadingInitialTrace ? "载入中" : "历史调用"}
+            {isLoadingInitialTrace ? "载入中" : "抽卡记录"}
           </button>
-          <Link
-            href="/admin/gacha/audit-logs"
-            className="flex h-8 items-center gap-2 border border-[#d4ded9] bg-[#f8faf9] px-3 text-[10px] font-black text-[#5c6b63] transition hover:border-[#98aaa1] hover:text-[#1f372c]"
-          >
-            <FileClock className="size-3.5" />
-            API 记录
-          </Link>
         </div>
       </header>
 
@@ -957,7 +959,8 @@ export default function SandboxTraceLab({ banners, initialRequestId }: SandboxTr
       />
       {isHistoryOpen ? (
         <TraceHistoryDialog
-          activeRequestId={run.requestId}
+          activeOperationId={run.operationId}
+          playerId={initialPlayerId}
           open={isHistoryOpen}
           onOpenChange={setIsHistoryOpen}
           onTraceLoaded={loadHistoricalTrace}

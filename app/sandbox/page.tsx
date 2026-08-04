@@ -8,11 +8,19 @@ type SandboxRouteProps = {
 
 export default async function SandboxRoute({ searchParams }: SandboxRouteProps) {
   const params = (await searchParams) ?? {};
-  const requestIdValue = params.request_id;
-  const requestId = Array.isArray(requestIdValue) ? requestIdValue[0] : requestIdValue;
-  const initialRequestId = isUuidLike(requestId) ? requestId : undefined;
+  const operationIdValue = params.operation_id;
+  const operationId = Array.isArray(operationIdValue) ? operationIdValue[0] : operationIdValue;
+  const playerIdValue = params.player_id;
+  const playerId = Array.isArray(playerIdValue) ? playerIdValue[0] : playerIdValue;
+  const initialOperationId = isUuidLike(operationId) ? operationId : undefined;
+  const initialPlayerId = isUuidLike(playerId) ? playerId : undefined;
 
-  return <SandboxPage initialRequestId={initialRequestId} />;
+  return (
+    <SandboxPage
+      initialOperationId={initialOperationId}
+      initialPlayerId={initialPlayerId}
+    />
+  );
 }
 
 function isUuidLike(value: string | undefined) {

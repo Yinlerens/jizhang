@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowUpRight,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
@@ -24,7 +23,6 @@ import { getAuthUserById } from "@/lib/control-plane/auth-users";
 import { parseUuid } from "@/lib/control-plane/input";
 import {
   getPlayerSupport,
-  type PlayerSupportAPICall,
   type PlayerSupportOperation,
   type PlayerSupportPullEvent,
   type PlayerSupportPullRecord,
@@ -229,7 +227,6 @@ function PlayerEvidence({ support }: { support: PlayerSupportResponse }) {
   const records = support.sections.pull_records.data?.items ?? [];
   const inventory = support.sections.inventory.data?.items ?? [];
   const ledger = support.sections.ledger.data?.items ?? [];
-  const apiCalls = support.sections.api_calls.data?.items ?? [];
   const latestOperation = operations[0] ?? null;
   const deliveredEventIds = new Set(events.map((event) => event.event_id));
   const caseSummary = summarizePlayerCase({
@@ -326,7 +323,13 @@ function PlayerEvidence({ support }: { support: PlayerSupportResponse }) {
         countLabel={`${operations.length} 次操作`}
         section={support.sections.pull_operations}
       >
-        {operations.length ? <OperationTable deliveredEventIds={deliveredEventIds} operations={operations} /> : (
+        {operations.length ? (
+          <OperationTable
+            deliveredEventIds={deliveredEventIds}
+            operations={operations}
+            playerId={support.player_id}
+          />
+        ) : (
           <PreciseEmpty label={support.sections.pull_operations.status === "ok" ? "没有抽卡操作" : "抽卡操作不可用"} />
         )}
       </EvidenceSection>
@@ -344,24 +347,6 @@ function PlayerEvidence({ support }: { support: PlayerSupportResponse }) {
         />
       </EvidenceSection>
 
-      <EvidenceSection
-        title="最近 API 请求"
-        countLabel={`${apiCalls.length} 条记录`}
-        section={support.sections.api_calls}
-        action={(
-          <Link
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[#245a54] hover:text-[#143f3b]"
-            href={`/admin/gacha/audit-logs?user_id=${encodeURIComponent(support.player_id)}`}
-          >
-            全部记录
-            <ArrowUpRight className="size-3.5" />
-          </Link>
-        )}
-      >
-        {apiCalls.length ? <APICallTable calls={apiCalls} /> : (
-          <PreciseEmpty label={support.sections.api_calls.status === "ok" ? "没有 API 请求记录" : "API 请求记录不可用"} />
-        )}
-      </EvidenceSection>
     </>
   );
 }
@@ -439,9 +424,11 @@ function EvidenceSection({
 function OperationTable({
   deliveredEventIds,
   operations,
+  playerId,
 }: {
   deliveredEventIds: ReadonlySet<string>;
   operations: PlayerSupportOperation[];
+  playerId: string;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -453,7 +440,7 @@ function OperationTable({
             <th className="px-4 py-3">卡池 / 抽数</th>
             <th className="px-4 py-3">保底</th>
             <th className="px-4 py-3">奖励</th>
-            <th className="px-4 py-3">请求 / 事件</th>
+            <th className="px-4 py-3">操作 / 事件</th>
             <th className="px-4 py-3">异常</th>
             <th className="px-4 py-3 text-right">链路</th>
           </tr>
@@ -483,7 +470,7 @@ function OperationTable({
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
-                  <div title={operation.request_id ?? ""}>请求 {shortId(operation.request_id)}</div>
+                  <div title={operation.operation_id}>操作 {shortId(operation.operation_id)}</div>
                   <div className="mt-1" title={operation.event_id ?? ""}>事件 {shortId(operation.event_id)}</div>
                 </td>
                 <td className="max-w-64 px-4 py-3 text-xs">
@@ -495,16 +482,14 @@ function OperationTable({
                   ) : <span className="text-slate-300">-</span>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {operation.request_id ? (
-                    <Link
-                      aria-label="在 Sandbox 查看调用链"
-                      className="inline-flex size-8 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400"
-                      href={`/sandbox?request_id=${encodeURIComponent(operation.request_id)}`}
-                      title="在 Sandbox 查看调用链"
-                    >
-                      <Workflow className="size-4" />
-                    </Link>
-                  ) : <span className="text-slate-300">-</span>}
+                  <Link
+                    aria-label="在 Sandbox 重放本次抽卡"
+                    className="inline-flex size-8 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400"
+                    href={`/sandbox?${new URLSearchParams({ player_id: playerId, operation_id: operation.operation_id })}`}
+                    title="在 Sandbox 重放本次抽卡"
+                  >
+                    <Workflow className="size-4" />
+                  </Link>
                 </td>
               </tr>
             );
@@ -522,9 +507,9 @@ function RewardEvidence({
   recordStatus,
 }: {
   events: PlayerSupportPullEvent[];
-  eventStatus: "ok" | "not_found" | "unavailable";
+  eventStatus: PlayerSupportSection<unknown>["status"];
   records: PlayerSupportPullRecord[];
-  recordStatus: "ok" | "not_found" | "unavailable";
+  recordStatus: PlayerSupportSection<unknown>["status"];
 }) {
   if (!events.length && !records.length) {
     return (
@@ -575,59 +560,11 @@ function RewardEvidence({
   );
 }
 
-function APICallTable({ calls }: { calls: PlayerSupportAPICall[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-        <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
-          <tr>
-            <th className="px-4 py-3">时间</th>
-            <th className="px-4 py-3">状态</th>
-            <th className="px-4 py-3">方法</th>
-            <th className="px-4 py-3">路径</th>
-            <th className="px-4 py-3">耗时</th>
-            <th className="px-4 py-3">异常</th>
-            <th className="px-4 py-3 text-right">链路</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {calls.map((call) => (
-            <tr key={call.request_id}>
-              <td className="px-4 py-3 text-xs text-slate-500">{formatTime(call.started_at)}</td>
-              <td className="px-4 py-3"><HTTPStatus status={call.response_status} /></td>
-              <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600">{call.method}</td>
-              <td className="max-w-96 px-4 py-3">
-                <div className="truncate text-sm font-medium text-slate-800" title={`${call.path}${call.raw_query ? `?${call.raw_query}` : ""}`}>{call.path}</div>
-                <div className="mt-1 font-mono text-[11px] text-slate-400" title={call.request_id}>{shortId(call.request_id)}</div>
-              </td>
-              <td className="px-4 py-3 text-xs text-slate-500">{call.duration_ms === null ? "-" : `${call.duration_ms} ms`}</td>
-              <td className="max-w-64 px-4 py-3 text-xs text-rose-700">
-                <div className="truncate" title={call.error_message ?? ""}>{call.error_code ?? "-"}</div>
-              </td>
-              <td className="px-4 py-3 text-right">
-                {isGachaPull(call.path) ? (
-                  <Link
-                    aria-label="在 Sandbox 查看调用链"
-                    className="inline-flex size-8 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400"
-                    href={`/sandbox?request_id=${encodeURIComponent(call.request_id)}`}
-                    title="在 Sandbox 查看调用链"
-                  >
-                    <Workflow className="size-4" />
-                  </Link>
-                ) : <span className="text-slate-300">-</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SectionState({ status }: { status: "ok" | "not_found" | "unavailable" }) {
+function SectionState({ status }: { status: PlayerSupportSection<unknown>["status"] }) {
   const config = {
     ok: { label: "已读取", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
     not_found: { label: "无记录", className: "bg-slate-100 text-slate-600 ring-slate-200" },
+    not_applicable: { label: "未进入", className: "bg-slate-100 text-slate-500 ring-slate-200" },
     unavailable: { label: "不可用", className: "bg-rose-50 text-rose-700 ring-rose-200" },
   }[status];
   return <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ring-1 ${config.className}`}>{config.label}</span>;
@@ -643,17 +580,6 @@ function OperationStatus({ status }: { status: PlayerSupportOperation["status"] 
     failed: ["失败", "bg-rose-50 text-rose-700 ring-rose-200"],
   }[status];
   return <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ${config[1]}`}>{config[0]}</span>;
-}
-
-function HTTPStatus({ status }: { status: number | null }) {
-  const className = status === null
-    ? "bg-slate-100 text-slate-600 ring-slate-200"
-    : status >= 500
-      ? "bg-rose-50 text-rose-700 ring-rose-200"
-      : status >= 400
-        ? "bg-amber-50 text-amber-700 ring-amber-200"
-        : "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  return <span className={`inline-flex min-w-12 justify-center rounded-md px-2 py-1 font-mono text-xs font-semibold ring-1 ${className}`}>{status ?? "..."}</span>;
 }
 
 function PreciseEmpty({ label, compact = false }: { label: string; compact?: boolean }) {
@@ -680,7 +606,7 @@ function combinedEvidenceSection(
 ): PlayerSupportSection<unknown> {
   const unavailable = sections.find((section) => section.status === "unavailable");
   if (unavailable) return unavailable;
-  if (sections.every((section) => section.status === "not_found")) return sections[0];
+  if (sections.every((section) => section.status === "not_found" || section.status === "not_applicable")) return sections[0];
   return { status: "ok", data: null };
 }
 
@@ -692,7 +618,6 @@ function unavailableSectionNames(support: PlayerSupportResponse) {
     inventory: "背包库存",
     pull_events: "奖励事件",
     pull_records: "奖励明细",
-    api_calls: "API 请求",
   };
   return (Object.keys(labels) as (keyof typeof labels)[])
     .filter((key) => support.sections[key].status === "unavailable")
@@ -721,10 +646,6 @@ function rarityClass(rarity: number) {
   if (rarity === 5) return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
   if (rarity === 4) return "bg-violet-50 text-violet-700 ring-1 ring-violet-200";
   return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-}
-
-function isGachaPull(path: string) {
-  return /\/gacha\/me\/pulls(?:\/|$)/.test(path);
 }
 
 function shortId(value: string | null | undefined) {

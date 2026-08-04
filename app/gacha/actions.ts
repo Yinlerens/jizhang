@@ -14,7 +14,7 @@ import {
   shouldPreservePullOperation,
   shouldPreservePullRecoveryLookup,
 } from "@/lib/gacha/pull-recovery";
-import { getAuditLogDetail, listAuditLogs } from "@/lib/gateway/audit";
+import { getAuditLogDetail } from "@/lib/gateway/audit";
 import { getAssetAccount } from "@/lib/gateway/assets";
 import {
   getBackpackInventory,
@@ -26,16 +26,19 @@ import {
   type BackpackPullRecord,
 } from "@/lib/gateway/backpack";
 import { getAuthenticatedSession } from "@/lib/supabase/server";
+import { getPlayerPullReplay, getPlayerSupport } from "@/lib/gateway/player-support";
 import { toGachaTraceAuditSnapshot } from "@/lib/trace/gacha-audit";
 import {
   compareGachaHistoricalTraces,
-  createGachaHistoricalTrace,
   selectGachaTraceBaseline,
-  toGachaTraceHistoryEntry,
   type GachaHistoricalTrace,
   type GachaTraceComparison,
   type GachaTraceHistoryEntry,
 } from "@/lib/trace/gacha-history";
+import {
+  createGachaOperationTrace,
+  toGachaOperationHistoryEntry,
+} from "@/lib/trace/gacha-operation-replay";
 import {
   createGachaConcurrencyPlan,
   summarizeGachaConcurrencyBatch,
@@ -49,7 +52,7 @@ import {
   KAFKA_MONITOR_TOPIC,
   type KafkaMonitorSignal,
 } from "@/lib/trace/kafka-monitor";
-import { reduceGachaTrace, type GachaTraceAuditSnapshot } from "@/lib/trace/gacha-run";
+import type { GachaTraceAuditSnapshot } from "@/lib/trace/gacha-run";
 
 export type PullGachaActionResult =
   | {
@@ -656,40 +659,53 @@ export async function loadGachaTraceAudit({
   }
 }
 
-export async function loadGachaTraceHistory(): Promise<GachaTraceHistoryActionResult> {
+export async function loadGachaTraceHistory({
+  playerId,
+}: {
+  playerId?: string;
+} = {}): Promise<GachaTraceHistoryActionResult> {
   const { user, session } = await getAuthenticatedSession();
 
   if (!user || !session?.access_token) {
     return { ok: false, message: "登录状态已失效。" };
   }
 
+  const targetPlayerId = playerId?.trim() || user.id;
+  if (!isUuidLike(targetPlayerId)) {
+    return { ok: false, message: "玩家 ID 不合法。" };
+  }
+
   try {
-    const response = await listAuditLogs(session.access_token, {
-      limit: "50",
-      method: "POST",
-      path: GACHA_PULL_PATH,
-    });
-    const entries = response.data
-      .filter(isGachaPullAudit)
-      .map(toGachaTraceHistoryEntry);
+    const support = await getPlayerSupport(session.access_token, targetPlayerId);
+    if (support.sections.pull_operations.status !== "ok") {
+      return {
+        ok: false,
+        message: support.sections.pull_operations.error?.message ?? "抽卡记录暂时不可用。",
+      };
+    }
+    const entries = (support.sections.pull_operations.data?.items ?? []).map(
+      toGachaOperationHistoryEntry,
+    );
 
     return { ok: true, entries };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "历史调用暂时不可用。",
+      message: error instanceof Error ? error.message : "抽卡记录暂时不可用。",
     };
   }
 }
 
 export async function loadHistoricalGachaTrace({
-  requestId,
+  operationId,
+  playerId,
 }: {
-  requestId: string;
+  operationId: string;
+  playerId?: string;
 }): Promise<HistoricalGachaTraceActionResult> {
-  const normalizedRequestId = requestId.trim();
-  if (!isUuidLike(normalizedRequestId)) {
-    return { ok: false, message: "请输入完整有效的 Request ID。" };
+  const normalizedOperationId = operationId.trim();
+  if (!isUuidLike(normalizedOperationId)) {
+    return { ok: false, message: "请输入完整有效的抽卡操作 ID。" };
   }
 
   const { user, session } = await getAuthenticatedSession();
@@ -697,33 +713,39 @@ export async function loadHistoricalGachaTrace({
     return { ok: false, message: "登录状态已失效。" };
   }
 
-  try {
-    const detail = await getAuditLogDetail(session.access_token, normalizedRequestId);
-    if (!isGachaPullAudit(detail)) {
-      return { ok: false, message: "该 Request ID 不是抽卡调用。" };
-    }
+  const targetPlayerId = playerId?.trim() || user.id;
+  if (!isUuidLike(targetPlayerId)) {
+    return { ok: false, message: "玩家 ID 不合法。" };
+  }
 
-    const trace = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(detail));
+  try {
+    const replay = await getPlayerPullReplay(
+      session.access_token,
+      targetPlayerId,
+      normalizedOperationId,
+    );
     return {
       ok: true,
-      trace: await enrichHistoricalBackpackTrace(session.access_token, trace),
+      trace: createGachaOperationTrace(replay),
     };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "历史调用加载失败。",
+      message: error instanceof Error ? error.message : "抽卡记录加载失败。",
     };
   }
 }
 
 export async function compareHistoricalGachaTrace({
-  requestId,
+  operationId,
+  playerId,
 }: {
-  requestId: string;
+  operationId: string;
+  playerId?: string;
 }): Promise<HistoricalGachaComparisonActionResult> {
-  const normalizedRequestId = requestId.trim();
-  if (!isUuidLike(normalizedRequestId)) {
-    return { ok: false, message: "请输入完整有效的 Request ID。" };
+  const normalizedOperationId = operationId.trim();
+  if (!isUuidLike(normalizedOperationId)) {
+    return { ok: false, message: "请输入完整有效的抽卡操作 ID。" };
   }
 
   const { user, session } = await getAuthenticatedSession();
@@ -731,47 +753,44 @@ export async function compareHistoricalGachaTrace({
     return { ok: false, message: "登录状态已失效。" };
   }
 
+  const targetPlayerId = playerId?.trim() || user.id;
+  if (!isUuidLike(targetPlayerId)) {
+    return { ok: false, message: "玩家 ID 不合法。" };
+  }
+
   try {
-    const targetDetailPromise = getAuditLogDetail(session.access_token, normalizedRequestId);
-    const historyPromise = listAuditLogs(session.access_token, {
-      limit: "100",
-      method: "POST",
-      path: GACHA_PULL_PATH,
-    });
-    const [targetDetail, history] = await Promise.all([targetDetailPromise, historyPromise]);
-
-    if (!isGachaPullAudit(targetDetail)) {
-      return { ok: false, message: "该 Request ID 不是抽卡调用。" };
-    }
-
-    const target = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(targetDetail));
-    const candidates = history.data
-      .filter(isGachaPullAudit)
-      .map(toGachaTraceHistoryEntry);
+    const [targetReplay, support] = await Promise.all([
+      getPlayerPullReplay(session.access_token, targetPlayerId, normalizedOperationId),
+      getPlayerSupport(session.access_token, targetPlayerId),
+    ]);
+    const target = createGachaOperationTrace(targetReplay);
+    const candidates = (support.sections.pull_operations.data?.items ?? []).map(
+      toGachaOperationHistoryEntry,
+    );
     const baselineEntry = selectGachaTraceBaseline(target.entry, candidates);
 
     if (!baselineEntry) {
-      return { ok: false, message: "没有找到同卡池、同抽数的成功调用。" };
+      return { ok: false, message: "没有找到同卡池、同抽数的成功记录。" };
+    }
+    if (!baselineEntry.operationId) {
+      return { ok: false, message: "对比记录缺少抽卡操作 ID。" };
     }
 
-    const baselineDetail = await getAuditLogDetail(
+    const baselineReplay = await getPlayerPullReplay(
       session.access_token,
-      baselineEntry.requestId,
+      targetPlayerId,
+      baselineEntry.operationId,
     );
-    const baseline = createGachaHistoricalTrace(toGachaTraceAuditSnapshot(baselineDetail));
-    const [enrichedTarget, enrichedBaseline] = await Promise.all([
-      enrichHistoricalBackpackTrace(session.access_token, target),
-      enrichHistoricalBackpackTrace(session.access_token, baseline),
-    ]);
+    const baseline = createGachaOperationTrace(baselineReplay);
 
     return {
       ok: true,
-      comparison: compareGachaHistoricalTraces(enrichedTarget, enrichedBaseline),
+      comparison: compareGachaHistoricalTraces(target, baseline),
     };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "调用对比失败。",
+      message: error instanceof Error ? error.message : "抽卡记录对比失败。",
     };
   }
 }
@@ -922,83 +941,4 @@ function isUuidLike(value: string) {
 function normalizeRequestId(value: string | undefined) {
   const normalized = typeof value === "string" ? value.trim() : "";
   return isUuidLike(normalized) ? normalized : randomUUID();
-}
-
-const GACHA_PULL_PATH = "/api/v1/gacha/me/pulls";
-
-function isGachaPullAudit(item: { path: string }) {
-  return item.path === GACHA_PULL_PATH || item.path.endsWith(GACHA_PULL_PATH);
-}
-
-async function enrichHistoricalBackpackTrace(
-  accessToken: string,
-  trace: GachaHistoricalTrace,
-): Promise<GachaHistoricalTrace> {
-  if (!trace.run.eventId || trace.entry.outcome !== "success") {
-    return trace;
-  }
-
-  const startedAt = trace.run.nodes.backpack.startedAt ?? trace.run.startedAt;
-
-  try {
-    const detail = await getBackpackPullEvent({
-      accessToken,
-      eventId: trace.run.eventId,
-    });
-    const receivedAt = Date.parse(detail.event.received_at);
-    const run = reduceGachaTrace(trace.run, {
-      type: "backpack_succeeded",
-      at: Number.isFinite(receivedAt) ? receivedAt : startedAt,
-      result: {
-        event: {
-          eventId: detail.event.event_id,
-          eventType: detail.event.event_type,
-          bannerId: detail.event.banner_id,
-          stateVersion: detail.event.state_version,
-          receivedAt: detail.event.received_at,
-        },
-        eventRecords: detail.records.map((record) => ({
-          id: record.id,
-          itemId: record.item_id,
-          itemName: record.item_name,
-          itemType: record.item_type,
-          rarity: record.rarity,
-          isFeatured: record.is_featured,
-        })),
-        historyCount: detail.records.length,
-        inventory: {
-          distinctItemCount: new Set(detail.records.map((record) => record.item_id)).size,
-          totalQuantity: detail.records.length,
-        },
-      },
-    });
-    return { ...trace, run };
-  } catch (error) {
-    if (isRetryablePullEventError(error)) {
-      return {
-        ...trace,
-        run: reduceGachaTrace(trace.run, {
-          type: "backpack_pending",
-          at: startedAt,
-          attempts: 1,
-          retryAfterMs: 3_000,
-          message: "历史抽卡事件尚未在 Backpack 中找到。",
-        }),
-      };
-    }
-
-    return {
-      ...trace,
-      run: reduceGachaTrace(trace.run, {
-        type: "backpack_failed",
-        at: startedAt,
-        code:
-          error instanceof GatewayFetchError
-            ? error.code ?? "backpack_history_lookup_failed"
-            : "backpack_history_lookup_failed",
-        httpStatus: error instanceof GatewayFetchError ? error.status : undefined,
-        message: error instanceof Error ? error.message : "Backpack 历史状态查询失败。",
-      }),
-    };
-  }
 }

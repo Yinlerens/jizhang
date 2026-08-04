@@ -101,12 +101,13 @@ export default function TraceReplayControls({
 }
 
 function evidenceLabel(evidence: GachaReplayFrame["evidence"]) {
-  return { observed: "实测", derived: "路径判定", pending: "待确认" }[evidence];
+  return { observed: "实测", durable: "持久记录", derived: "路径判定", pending: "待确认" }[evidence];
 }
 
 function evidenceTone(evidence: GachaReplayFrame["evidence"]) {
   return {
     observed: "border-[#9bc1ca] bg-[#ebf7f9] text-[#236e80]",
+    durable: "border-[#9fcbb7] bg-[#eef8f3] text-[#287d59]",
     derived: "border-[#b8c5d8] bg-[#f1f4fa] text-[#526b96]",
     pending: "border-[#e6c78c] bg-[#fff8e9] text-[#9b651b]",
   }[evidence];
